@@ -42,3 +42,8 @@ test('AI：402／429／503 翻成中文訊息', async () => {
     await assert.rejects(ai('s', 'u', 10), re);
   }
 });
+
+test('AI：502（上游金鑰無效）顯示中文說明，不被當成登入過期', async () => {
+  const ai = createAiComplete({ endpoint: 'x', model: 'm', getToken: async () => 't', fetch: async () => jsonRes(502, { error: 'upstream_auth_failed' }) });
+  await assert.rejects(ai('s', 'u', 10), (e) => /上游金鑰/.test(e.message) && e.code !== 'auth_required');
+});
