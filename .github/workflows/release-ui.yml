@@ -1,0 +1,40 @@
+name: 發版 @judge/ui
+
+# 推送標籤 ui-vX.Y.Z 時：建置、打包，並建立 GitHub Release 附上 tarball。
+on:
+  push:
+    tags:
+      - 'ui-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/ui
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: 檢查標籤與 package.json 版本一致
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${TAG}" != "ui-v${VERSION}" ]; then
+            echo "標籤 ${TAG} 與 package.json 版本 ${VERSION} 不一致"; exit 1
+          fi
+      - name: 建置並檢查語法
+        run: npm run check
+      - name: 打包並建立 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          npm pack --silent
+          TGZ=$(ls judge-ui-*.tgz)
+          gh release create "${TAG}" "${TGZ}" --title "@judge/ui ${TAG#ui-}" --notes "@judge/ui 發版。安裝：\`\"@judge/ui\": \"https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${TGZ}\"\`"
