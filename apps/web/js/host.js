@@ -53,8 +53,42 @@
     try { window.localStorage.setItem(WEB_SETTINGS_KEY, JSON.stringify(obj)); } catch (e) { /* 無法保存時仍可在本次開啟中使用 */ }
   }
 
-  // 網頁版目前沒有「檔案」功能：結果只顯示在本頁，不會保存（請照實標示）。
-  var WEB_NO_FILES = '網頁版尚未提供檔案保存，結果只顯示在本頁，請自行匯出。';
+  // 檔案庫：登入後把結果保存到雲端（與桌面端「檔案」相同）。回傳 null 表示已保存，否則是失敗原因。
+  var LIBRARY_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/library';
+  // 檔案庫的一般呼叫（需要登入）：失敗時拋出錯誤，訊息來自雲端。
+  function libraryFetch(method, suffix, body) {
+    return window.JRAuth.getIdToken().then(function (token) {
+      if (!token) return Promise.reject(new Error('請先登入。'));
+      var init = { method: method, headers: { authorization: 'Bearer ' + token } };
+      if (body !== undefined) {
+        init.headers['content-type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      return fetch(LIBRARY_ENDPOINT + suffix, init);
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (j) {
+        if (!res.ok) throw new Error(j.message || ('檔案庫錯誤：HTTP ' + res.status));
+        return j;
+      });
+    });
+  }
+  function saveLibrary(kind, title, payload) {
+    return window.JRAuth.getIdToken().then(function (token) {
+      if (!token) return '尚未登入，結果只顯示在本頁。';
+      return fetch(LIBRARY_ENDPOINT, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+        body: JSON.stringify({ kind: kind, title: title, payload: payload }),
+      }).then(function (res) {
+        if (res.ok) return null;
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          return '保存失敗：' + (j.message || ('HTTP ' + res.status)) + '（結果只顯示在本頁）';
+        });
+      });
+    }).catch(function (err) {
+      return '保存失敗：' + ((err && err.message) || '未知錯誤') + '（結果只顯示在本頁）';
+    });
+  }
 
   // 手動輸入：一行可以是判決網址（取 id 參數）或判決 ID。空行與明顯不是 ID 的內容回傳 null。
   function manualIdOf(line) {
@@ -146,7 +180,12 @@
             var map = { subscription_required: '尚未訂閱或訂閱已到期。', monthly_quota_exceeded: '本月 AI 用量已用完。', upstream_auth_failed: '雲端 AI 暫時無法使用（上游金鑰未設定或無效）。', no_body: '這則判決沒有可用的原文。' };
             throw new Error(json.message || map[json.error] || ('精讀失敗：HTTP ' + res.status));
           }
-          return { detail: json.detail, doc: json.document, saveError: WEB_NO_FILES };
+          var bdetail = json.detail;
+          var bdoc = json.document;
+          var btitle = (bdoc && bdoc.title) || (bdetail && bdetail.meta && bdetail.meta.title) || '精讀';
+          return saveLibrary('brief', btitle, { detail: bdetail, doc: bdoc }).then(function (saveError) {
+            return { detail: bdetail, doc: bdoc, saveError: saveError };
+          });
         });
       });
     },
@@ -206,8 +245,28 @@
           });
         });
       }, Promise.resolve()).then(function () {
-        return { items: items, details: details, cancelled: false, saveError: WEB_NO_FILES, notes: notes };
+        return saveLibrary('list', '手動輸入（' + items.length + ' 筆）', { items: items, details: details, keyword: '手動輸入' }).then(function (saveError) {
+          return { items: items, details: details, cancelled: false, saveError: saveError, notes: notes };
+        });
       });
+    },
+    // 檔案庫：列出（含完整內容，供開啟）、更新（加星、封存、移入垃圾桶、還原）、刪除。
+    'library.list': function (args) {
+      var status = args && args.status ? '?status=' + encodeURIComponent(args.status) : '';
+      return libraryFetch('GET', '' + status).then(function (j) {
+        var items = j.items || [];
+        return Promise.all(items.map(function (it) {
+          return libraryFetch('GET', '/' + encodeURIComponent(it.id)).then(function (full) {
+            return Object.assign({}, it, { payload: full.payload || {} });
+          }, function () { return it; });
+        }));
+      });
+    },
+    'library.update': function (args) {
+      return libraryFetch('PATCH', '/' + encodeURIComponent(args.id), { patch: args.patch || {} });
+    },
+    'library.remove': function (args) {
+      return libraryFetch('DELETE', '/' + encodeURIComponent(args.id));
     },
     // 範圍整理：按鈕可用狀態（核心 scopeUiState，與桌面端相同的規則）。
     'scope.controls': function (args) {
@@ -312,7 +371,10 @@
           });
         });
       }, Promise.resolve()).then(function () {
-        return { status: 'done', sheets: sheets, explanation: scopeExplanation(), flow: null, libraryId: null, notes: notes, cancelled: false, saveError: WEB_NO_FILES };
+        var sheetTitle = '範圍整理：' + statutes.join('、');
+        return saveLibrary('scope', sheetTitle, { sheets: sheets, explanation: scopeExplanation(), flow: null, yearFrom: args.yearFrom || null, yearTo: args.yearTo || null }).then(function (saveError) {
+          return { status: 'done', sheets: sheets, explanation: scopeExplanation(), flow: null, libraryId: null, notes: notes, cancelled: false, saveError: saveError };
+        });
       });
     },
     // 覆核：摘要（待覆核數、高信心數），或套用一個覆核操作（接受、修改、拒絕、批次接受、還原）。
@@ -331,7 +393,11 @@
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {
-        return { items: (d.items || []).map(toItem), details: null, cancelled: false, saveError: WEB_NO_FILES };
+        var listItems = (d.items || []).map(toItem);
+        var kw = String(args && args.keyword || '');
+        return saveLibrary('list', '搜尋：' + (kw || '（無關鍵字）'), { items: listItems, details: {}, keyword: kw }).then(function (saveError) {
+          return { items: listItems, details: null, cancelled: false, saveError: saveError };
+        });
       });
     },
   };
