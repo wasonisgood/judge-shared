@@ -36,7 +36,7 @@
               <span class="entry-desc">依序執行五步：取得清單、取得文本、歷審、歷審文本、確定判決。輸出檔案放在輸入檔所在的資料夾。</span>
             </button>
           </li>
-          <li>
+          <li data-desktop-only>
             <button class="entry" data-go="chart">
               <span class="entry-title">量化圖表</span>
               <span class="entry-desc">讀取 Excel 結果檔，繪製長條圖、堆疊條圖、小提琴圖、交叉表與格狀地圖。只使用檔案內的資料。</span>

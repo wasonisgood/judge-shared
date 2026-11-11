@@ -15,17 +15,21 @@
   JR.controllers.design.bind();
   JR.controllers.annotation.bind();
   JR.controllers.files.bind();
-  JR.controllers.crawl.bind();
   JR.controllers.assistant.bind();
-  JR.controllers.localAi.bind();
-  JR.controllers.chart.bind();
   JR.controllers.auth.bind();
+  if (JR.platform === 'desktop') {
+    JR.controllers.crawl.bind();
+    JR.controllers.localAi.bind();
+    JR.controllers.chart.bind();
+    JR.controllers.worker.bind();
+  }
   JR.jobs.init();
-  JR.controllers.worker.bind();
 
-  api.appInfo().then(function (info) {
-    JR.$('versionInfo').textContent = '版本 ' + info.version + (info.packaged ? '' : '（開發版）');
-  });
+  if (JR.platform === 'desktop') {
+    api.appInfo().then(function (info) {
+      JR.$('versionInfo').textContent = '版本 ' + info.version + (info.packaged ? '' : '（開發版）');
+    }).catch(function () {});
+  }
   JR.controllers.settings.load();
   // 未登入時顯示登入閘門，覆蓋主畫面。
   JR.controllers.auth.checkOnStart();

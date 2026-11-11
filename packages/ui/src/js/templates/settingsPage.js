@@ -65,7 +65,7 @@
 
         <section class="set-sec" aria-labelledby="secMods">
           <h2 id="secMods"><span class="set-no">參</span>模組</h2>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>本地 AI</strong><span class="set-desc" id="localAiSummary" role="status">讀取中…</span></div>
             <div class="set-ctl">
               <label class="set-switch" title="開啟時，已安裝的本地模型會優先使用">
@@ -76,7 +76,7 @@
               <button class="btn small" type="button" id="openWizard">安裝或管理</button>
             </div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>量化圖表</strong><span class="set-desc">小提琴圖、堆疊圖、交叉表與示意格狀地圖，讀取 Excel 結果檔</span></div>
             <div class="set-ctl">
               <label class="set-switch" title="開啟即安裝並啟用；關閉即移除（頁面隱藏）">
@@ -87,19 +87,19 @@
               <button class="btn small" type="button" id="chartRemove">移除模組</button>
             </div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>爬取模組</strong><span class="set-desc" id="localCrawlSummary" role="status"></span></div>
             <div class="set-ctl"><button class="btn small" type="button" id="openCrawl">管理</button></div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>爭點知識庫</strong><span class="set-desc" id="knowledgeSummary" role="status">讀取中…</span></div>
             <div class="set-ctl"><button class="btn small" type="button" id="knowledgeInstall">更新知識庫</button></div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>應用程式更新</strong><span class="set-desc" id="updaterSummary" role="status"></span></div>
             <div class="set-ctl"><button class="btn small" type="button" id="openUpdater">檢查更新</button></div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>排除問題</strong><span class="set-desc">檢查本地 AI 與連線狀態，並匯出報告</span></div>
             <div class="set-ctl"><button class="btn small" type="button" id="openDiag">開啟</button></div>
           </div>
