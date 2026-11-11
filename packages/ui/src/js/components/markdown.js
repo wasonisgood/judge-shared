@@ -18,12 +18,18 @@
     var list = null;
     var para = null;
     String(text || '').replace(/\r/g, '').split('\n').forEach(function (line) {
-      var item = line.match(/^\s*[-*・]\s+(.*)$/);
-      if (item) {
+      // 無序條列（- * ・）與有序條列（1. 1、 1)）；同種清單連續出現時放在同一個清單內。
+      var bullet = line.match(/^\s*[-*・]\s+(.*)$/);
+      var numbered = line.match(/^\s*(\d{1,2})[.、)]\s+(.*)$/);
+      if (bullet || numbered) {
         para = null;
-        if (!list) { list = JR.el('ul', 'md-list'); root.appendChild(list); }
-        var li = JR.el('li', '');
-        inline(li, item[1]);
+        var kind = bullet ? 'ul' : 'ol';
+        if (!list || list.tagName.toLowerCase() !== kind) {
+          list = JR.el(kind, 'md-list', '');
+          root.appendChild(list);
+        }
+        var li = JR.el('li', '', '');
+        inline(li, bullet ? bullet[1] : numbered[2]);
         list.appendChild(li);
         return;
       }
