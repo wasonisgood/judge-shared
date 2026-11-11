@@ -44,6 +44,41 @@
     };
   }
 
+  // AI 呼叫（雲端 aiProxy，OpenAI 相容）。回傳 AiComplete(system, user, maxTokens) => Promise<string>，
+  // 與桌面端 core 的 AiComplete 同一個介面，因此 core 的自然語言解析可直接使用。
+  var AI_ERRORS = {
+    402: '尚未訂閱或訂閱已到期，無法使用 AI 功能。',
+    429: '本月 AI 用量已用完。',
+    503: '雲端 AI 尚未設定。',
+  };
+  function createAiComplete(opts) {
+    var fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
+    return function (system, user, maxTokens) {
+      return Promise.resolve(opts.getToken ? opts.getToken() : null).then(function (token) {
+        if (!token) throw authRequired();
+        return fetchImpl(opts.endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            model: opts.model,
+            max_tokens: maxTokens,
+            messages: [{ role: 'system', content: system }, { role: 'user', content: user }],
+          }),
+        });
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (res.status === 401) throw authRequired('登入已過期，請重新登入。');
+          if (!res.ok) {
+            var detail = (json.error && (json.error.message || json.error)) || '';
+            throw new Error((AI_ERRORS[res.status] || ('AI 服務回應錯誤：HTTP ' + res.status)) + (typeof detail === 'string' && detail ? '（' + detail + '）' : ''));
+          }
+          var msg = json.choices && json.choices[0] && json.choices[0].message;
+          return String((msg && msg.content) || '').trim();
+        });
+      });
+    };
+  }
+
   // PKCE（S256）：產生 verifier 與 challenge。需要 crypto.subtle（瀏覽器與 Node 22 皆有）。
   function base64url(bytes) {
     var s = '';
@@ -61,7 +96,7 @@
     });
   }
 
-  var api = { createClient: createClient, createPkce: createPkce, base64url: base64url, authRequired: authRequired };
+  var api = { createClient: createClient, createAiComplete: createAiComplete, createPkce: createPkce, base64url: base64url, authRequired: authRequired };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.JRMcp = api;
 })(typeof window !== 'undefined' ? window : globalThis);

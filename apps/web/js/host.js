@@ -10,6 +10,16 @@
     getToken: function () { return window.JRAuth.getIdToken(); },
   });
 
+  // AI 模型（OpenAI 相容的模型名稱，需在雲端 ALLOWED_MODELS 內）。
+  var WEB_AI_MODEL = 'anthropic/claude-haiku-4.5';
+  var aiComplete = window.JRMcp.createAiComplete({
+    endpoint: 'https://judge-remote-mcp-2026.web.app/aiProxy',
+    model: WEB_AI_MODEL,
+    getToken: function () { return window.JRAuth.getIdToken(); },
+  });
+  // core 的 interpret* 介面需要 () => Promise<AiComplete>。
+  function getAi() { return Promise.resolve(aiComplete); }
+
   function toItem(it) {
     return { id: it.id, title: it.title, dateIso: it.date_iso || null, cause: it.cause || '', href: it.href || null };
   }
@@ -29,8 +39,13 @@
     },
     'auth.cancel': function () { return Promise.resolve({ signedIn: false, message: '已取消登入。' }); },
     'auth.signOut': function () { return window.JRAuth.signOut().then(function () { return { ok: true }; }); },
-    // 網頁版沒有 AI 的自然語言解析：輸入就是關鍵字，照原樣搜尋。
-    'nl.interpret': function () { return Promise.resolve({ mode: 'keyword', fields: {} }); },
+    // 自然語言解析：與桌面端相同的 core 邏輯（window.JRNl），AI 經雲端 aiProxy 呼叫。
+    'nl.interpret': function (args) {
+      return window.JRNl.interpretInput(getAi, String(args && args.page || 'list'), String(args && args.text || ''));
+    },
+    'nl.criteria': function (args) {
+      return window.JRNl.interpretCriteria(getAi, String(args && args.text || ''));
+    },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {

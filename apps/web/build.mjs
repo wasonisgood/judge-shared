@@ -31,6 +31,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 自然語言解析：core 的 nlIntent（與桌面端相同的程式），掛到 window.JRNl。
+await build({
+  entryPoints: [join(here, 'src', 'nl.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRNl',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'nl.js'),
+  logLevel: 'warning',
+});
+
 cpSync(join(here, 'app', 'index.html'), join(app, 'index.html'));
 cpSync(join(here, 'js', 'host.js'), join(app, 'js', 'host.js'));
 cpSync(join(here, 'js', 'mcpClient.js'), join(app, 'js', 'mcpClient.js'));
