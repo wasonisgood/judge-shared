@@ -80,7 +80,8 @@ test('上下文組裝：超過字數上限時略過後續爭點並記錄，不�
   assert.equal(big.usedIds.length, r.hits.length);
 });
 
-test('真實內容檔：knowledge/data 下所有 JSON 都能通過驗證，且 id 不重複', () => {
+// 內容資料位於 judge-desktop/knowledge（不在本套件內）；找不到時略過，不影響核心邏輯測試。
+test('真實內容檔：knowledge/data 下所有 JSON 都能通過驗證，且 id 不重複', { skip: !fs.existsSync(dataDir) && 'knowledge/data 不在此套件內' }, () => {
   const files = fs.readdirSync(dataDir).filter((f) => f.endsWith('.json'));
   assert.ok(files.length > 0);
   const sources = files.map((f) => ({ source: f, raw: JSON.parse(fs.readFileSync(path.join(dataDir, f), 'utf8')) }));

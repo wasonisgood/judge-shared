@@ -1,0 +1,44 @@
+name: 發版 @judge/core
+
+# 推送標籤 core-vX.Y.Z 時：測試、建置、打包，並建立 GitHub Release 附上 tarball。
+# 應用程式以 Release 的 tarball 網址釘住版本，不需要套件註冊中心。
+on:
+  push:
+    tags:
+      - 'core-v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/core/package-lock.json
+      - name: 檢查標籤與 package.json 版本一致
+        env:
+          TAG: ${{ github.ref_name }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          if [ "${TAG}" != "core-v${VERSION}" ]; then
+            echo "標籤 ${TAG} 與 package.json 版本 ${VERSION} 不一致"; exit 1
+          fi
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: 打包並建立 Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          npm pack --silent
+          TGZ=$(ls judge-core-*.tgz)
+          gh release create "${TAG}" "${TGZ}" --title "@judge/core ${TAG#core-}" --notes "@judge/core 發版。安裝：\`\"@judge/core\": \"https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/${TGZ}\"\`"
