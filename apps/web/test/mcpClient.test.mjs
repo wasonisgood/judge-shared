@@ -61,3 +61,13 @@ test('PKCE：challenge 等於 base64url(SHA-256(verifier))，verifier 長度足�
   assert.ok(p.verifier.length >= 43);
   assert.equal(p.challenge, base64url(createHash('sha256').update(p.verifier).digest()));
 });
+
+test('call：工具錯誤回傳 error.message（雲端的錯誤格式），不是只顯示工具名稱', async () => {
+  const server = await serve((req, res, body) => {
+    res.setHeader('content-type', 'application/json');
+    res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: { structuredContent: { schema: 'judge-mcp/v1', tool: 'quick_search', ok: false, error: { code: 'invalid_argument', message: '缺少參數：keyword' } } } }));
+  });
+  const client = createClient({ endpoint: `http://127.0.0.1:${server.address().port}/mcp`, getToken: () => 'ok' });
+  await assert.rejects(client.call('quick_search', {}), /缺少參數：keyword/);
+  server.close();
+});

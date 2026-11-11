@@ -37,7 +37,7 @@
           var env = rpc.result && (rpc.result.structuredContent ||
             (rpc.result.content && rpc.result.content[0] && JSON.parse(rpc.result.content[0].text)));
           if (!env) throw new Error('雲端服務回傳格式不正確');
-          if (!env.ok) throw new Error((env.data && env.data.message) || '工具執行失敗：' + tool);
+          if (!env.ok) throw new Error((env.error && env.error.message) || (env.data && env.data.message) || '工具執行失敗：' + tool);
           return env.data;
         });
       },
