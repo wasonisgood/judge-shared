@@ -18,6 +18,8 @@
 - [x] 自然語言搜尋：網頁版 → 核心解析 → 雲端 AI 代理 → 司法院搜尋（已驗證）。
 - [x] 精讀：選定判決 → 整理成文書（主文、理由等段落）（已驗證）。
 - [x] 精讀文書匯出 Word（API 已驗證，產生 11 KB 的 docx；畫面按鈕已接線）。
+- [x] 範圍整理：列出判決、逐案分析、綜合、Excel 匯出（畫面上已完成一次整理；詳見 P1 的剩餘項目）。
+- [x] 共用畫面的勾選框版面修正（表單通用寬度規則不再撐開勾選框，`@judge/ui` 0.1.5 以後的 base.css）。
 - [x] 判決列表匯出 Excel（API 已驗證，產生 6.9 KB 的 xlsx；畫面按鈕已接線）。
 - [x] 助理：對話交給雲端代理，代理用工具查判決後回答（API 已驗證，會呼叫 `quick_search`、`get_judgment_detail`）。
 - [x] 設定頁的欄位與偏好（預設值取自核心；保存在本機，不含金鑰）。
@@ -36,10 +38,18 @@
 
 每一項都寫明：現在的狀態、要改的檔案、驗收方式。
 
-### P1 範圍整理（標編碼標注工序）
-- 狀態：網頁版按鈕的 `api.scope.*` 尚未對應。桌面版核心在 `packages/core/src/pipeline/scopeFlow.ts`、`court/scope.ts`、`ai/analysis.ts`（`analyzeCase`、`synthesizeScope`）。桌面的流程（`apps/desktop/src/main/services/scopeService.ts`）包含：法規引用的判決篩選、逐案編碼（欄位）、覆核、綜合分析、匯出 Excel／Word。
-- 要做：(a) 雲端端點 `/api/scope`（逐案編碼需多次 AI 呼叫，要注意 5 分鐘逾時——考慮分批或改為多次請求）；(b) 網頁版 `host.js` 的 `scope.run`、`scope.export`、`scope.judgmentText`、`scope.controls`；(c) 匯出。
-- 驗收：以「二二八事件處理及賠償條例」為例，在網頁版完整跑完並匯出。
+### P1 範圍整理（標編碼標注工序）— 大部分已完成（2026-11-11）
+- 已完成並驗證（在畫面上）：以「二二八事件處理及補償條例」、最多 1 筆為例，「開始整理」完成，表格有資料，訊息為「完成，共 1 筆。有 2 格待覆核」，並照實標示「網頁版尚未提供檔案保存」。耗時約 40 秒／1 筆。
+- 做法：列出判決用 MCP `scope_table`；逐案全文用 MCP `get_judgment_detail`；逐案分析與綜合用核心 `analyzeCase`／`synthesizeScope`，**在瀏覽器執行**，AI 經 `aiProxy`（`apps/web/src/scope.js` 打包為 `js/scope.js`）。覆核用核心 `summarizeReview`／`applyReviewOp`（`scope.review`）。
+- 已完成的匯出：Excel（`/api/export/scope`，每法規一個工作表，欄位值與依據分開，待覆核標示；API 與下載已驗證）。
+- 未完成：
+  - (a) `scope.judgmentText`（點開逐字依據看原文）尚未對應，目前回報「尚未支援」。
+  - (b) `scope.controls`（按鈕可用狀態）尚未確認是否正確；需要在畫面上看按鈕是否在結果前後正確啟用與停用。
+  - (c) Word 匯出（`format: 'docx'`）尚未對應，目前照實回報。
+  - (d) 覆核的畫面操作（接受、修改、拒絕、批次接受、還原）尚未在畫面上實測；`scope.review` 的 `op` 分支已接線但未驗證。
+  - (e) 逐案分析是一則一則依序執行，一次可能要數分鐘；網頁版目前沒有進度條以外的中斷機制（已有 `cancelled` 欄位但未接上取消）。
+  - (f) 綜合分析（`synthesis`）已產生，但畫面是否正確顯示尚未實測。
+- 驗收（剩餘）：以「二二八事件處理及補償條例」、最多 5 筆完整跑完；點開一個依據；覆核一格；匯出 Excel 並打開檢查內容。
 
 ### P2 手動輸入判決（判決列表頁的下半段）
 - 狀態：`search.manual` 未對應。

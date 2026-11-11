@@ -53,6 +53,9 @@ Firebase 專案：`judge-remote-mcp-2026`，區域 `asia-east1`。Hosting 的 `f
 | `/api/upload` | `upload` | 文字檔上傳（Storage，10 MB，僅 txt／csv／md） | 同上 |
 | `/api/export/list` | `exportList` | 判決列表匯出 Excel（Storage 下載連結） | ID Token（不需訂閱） |
 | `/api/export/brief` | `exportBrief` | 精讀文書匯出 Word（Storage 下載連結） | ID Token（不需訂閱） |
+| `/api/export/scope` | `exportScope` | 範圍整理匯出 Excel（每法規一表；Storage 下載連結） | ID Token（不需訂閱） |
+
+注意：範圍整理的「分析」不在雲端端點執行。網頁版在瀏覽器用核心的 `analyzeCase`（打包為 `js/scope.js`），AI 經 `/aiProxy`；判決資料經 MCP `scope_table`、`get_judgment_detail`。因此範圍整理沒有 `/api/scope` 端點。
 | `/api/annotations` | `mcp` | 個案研究筆記雲端同步 | ID Token |
 | `ocr`、`probe`、`billingCheckout`、`billingWebhook` | 同名 | OCR、探測、金流（Beta，預設關閉） | 各自 |
 
