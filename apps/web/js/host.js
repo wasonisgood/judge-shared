@@ -62,6 +62,23 @@
         return { reply: reply, navigate: r.navigate || null, ui: r.ui || [], pending: [] };
       });
     },
+    // 判決列表匯出（Excel）：雲端產生檔案，取得下載連結後直接下載。
+    'exportList': function (args) {
+      return window.JRAuth.getIdToken().then(function (token) {
+        if (!token) return Promise.reject(new Error('請先登入。'));
+        return fetch('https://judge-remote-mcp-2026.web.app/api/export/list', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+          body: JSON.stringify({ keyword: String(args && args.keyword || ''), items: (args && args.items) || [] }),
+        });
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (!res.ok) throw new Error(json.message || ('匯出失敗：HTTP ' + res.status));
+          window.location.href = json.url;
+          return { canceled: false, filePath: json.name };
+        });
+      });
+    },
     'nl.criteria': function (args) {
       return window.JRNl.interpretCriteria(getAi, String(args && args.text || ''));
     },
