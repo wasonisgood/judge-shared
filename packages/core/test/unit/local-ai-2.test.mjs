@@ -200,9 +200,11 @@ test('planUpdate：只下載變動與新增，刪除已移除的檔案', () => {
   assert.equal(plan.fullRequired, false);
 });
 
-test('planUpdate：共用核心（packages/core/）變動 → fullRequired', () => {
+test('planUpdate：系統核心前綴（預設 runtime/）變動 → fullRequired；packages/core/ 不再是預設前綴', () => {
   const plan = planUpdate({ 'packages/core/src/x.js': '1' }, { 'packages/core/src/x.js': '2' });
-  assert.equal(plan.fullRequired, true);
+  assert.equal(plan.fullRequired, false);
+  const explicit = planUpdate({ 'modules/a/core/x.js': '1' }, { 'modules/a/core/x.js': '2' }, { corePrefixes: ['modules/a/core/'] });
+  assert.equal(explicit.fullRequired, true);
 });
 
 test('planUpdate：刪除的核心檔案也算變動', () => {

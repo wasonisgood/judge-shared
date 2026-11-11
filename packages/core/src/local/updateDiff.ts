@@ -1,5 +1,6 @@
 // 增量更新：比較舊版與新版的檔案清單（路徑 → SHA-256），只下載新增或內容改變的檔案。
-// 若共用核心（packages/core/ 或 runtime/）有變動，fullRequired 為 true，呼叫端應整包下載。
+// 若系統核心（預設為 runtime/，或呼叫端指定的前綴）有變動，fullRequired 為 true，呼叫端應整包下載。
+// 注意：@judge/core 已是獨立的版本化依賴，隨應用程式發版，不屬於模組檔案，因此預設不再包含 packages/core/。
 
 export type FileManifest = Record<string, string>;
 
@@ -16,7 +17,7 @@ export interface UpdateDiffOptions {
   corePrefixes?: string[];
 }
 
-const DEFAULT_CORE_PREFIXES = ['packages/core/', 'runtime/'];
+const DEFAULT_CORE_PREFIXES = ['runtime/'];
 
 export function planUpdate(oldM: FileManifest, newM: FileManifest, opts: UpdateDiffOptions = {}): UpdatePlan {
   const core = opts.corePrefixes ?? DEFAULT_CORE_PREFIXES;
