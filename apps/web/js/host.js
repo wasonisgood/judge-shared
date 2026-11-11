@@ -191,13 +191,13 @@
     },
     // 範圍整理匯出：Excel（xlsx）由雲端產生；Word（docx）尚未對應，照實回報。
     'scope.export': function (args) {
-      if (args && args.format === 'docx') return Promise.reject(new Error('網頁版的範圍整理 Word 匯出尚未支援，請先匯出 Excel。'));
+      var wantDocx = !!(args && args.format === 'docx');
       return window.JRAuth.getIdToken().then(function (token) {
         if (!token) return Promise.reject(new Error('請先登入。'));
         return fetch('https://judge-remote-mcp-2026.web.app/api/export/scope', {
           method: 'POST',
           headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
-          body: JSON.stringify({ sheets: (args && args.sheets) || [] }),
+          body: JSON.stringify({ sheets: (args && args.sheets) || [], format: wantDocx ? 'docx' : 'xlsx' }),
         });
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (json) {
