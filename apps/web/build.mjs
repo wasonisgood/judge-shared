@@ -44,6 +44,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 範圍整理：core 的逐案分析、綜合與覆核（在瀏覽器執行），掛到 window.JRScope。
+await build({
+  entryPoints: [join(here, 'src', 'scope.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRScope',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'scope.js'),
+  logLevel: 'warning',
+});
+
 cpSync(join(here, 'app', 'index.html'), join(app, 'index.html'));
 cpSync(join(here, 'js', 'host.js'), join(app, 'js', 'host.js'));
 cpSync(join(here, 'js', 'mcpClient.js'), join(app, 'js', 'mcpClient.js'));

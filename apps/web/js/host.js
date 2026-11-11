@@ -56,6 +56,27 @@
   // 網頁版目前沒有「檔案」功能：結果只顯示在本頁，不會保存（請照實標示）。
   var WEB_NO_FILES = '網頁版尚未提供檔案保存，結果只顯示在本頁，請自行匯出。';
 
+  // 範圍整理的分析欄位：只取勾選的；沒有設定時回傳 null（核心使用預設欄位）。
+  function scopeFieldsFromArgs(args) {
+    var list = (args && Array.isArray(args.fields)) ? args.fields : [];
+    var picked = list.filter(function (f) { return f && f.enabled !== false && String(f.name || '').trim(); })
+      .map(function (f) { return { id: String(f.id || f.name), name: String(f.name), description: String(f.description || '') }; });
+    return picked.length ? picked : null;
+  }
+  // 把 MCP 回傳的判決列補齊成核心 ScopeRow 需要的欄位。
+  function toScopeRow(r) {
+    return Object.assign({
+      id: '', title: '', court: null, dateIso: null, cause: '', result: '', citedArticles: [], lawNotes: [],
+      historyPosition: '', excerpts: { main: '', citing: '' }, href: '',
+    }, r, { citedArticles: (r && r.citedArticles) || [], lawNotes: (r && r.lawNotes) || [], excerpts: (r && r.excerpts) || { main: '', citing: '' } });
+  }
+  function scopeExplanation() {
+    return {
+      title: '範圍整理',
+      paragraphs: ['依法規列出確實引用該法規的判決；逐案由 AI 依判決原文編碼，每格附逐字依據，對不上的標示為待覆核。網頁版的結果只顯示在本頁，請自行匯出。'],
+    };
+  }
+
   function toItem(it) {
     return { id: it.id, title: it.title, dateIso: it.date_iso || null, cause: it.cause || '', href: it.href || null };
   }
@@ -165,6 +186,68 @@
           return { canceled: false, filePath: json.name };
         });
       });
+    },
+    // 範圍整理（標編碼標注工序）：每個法規以 MCP scope_table 列出判決，逐案取得全文，
+    // 由核心 analyzeCase 分析（AI 經 aiProxy），最後以 synthesizeScope 綜合。在瀏覽器依序執行，每次請求都在限時內。
+    'scope.run': function (args) {
+      var statutes = Array.isArray(args && args.statutes) ? args.statutes : String((args && args.statutes) || '').split(/\n/);
+      statutes = statutes.map(function (s) { return String(s || '').trim(); }).filter(Boolean);
+      var fields = scopeFieldsFromArgs(args);
+      var fieldList = fields || window.JRScope.DEFAULT_CODING_FIELDS;
+      var max = Math.min(10, Math.max(1, Number(args && args.maxItems) || 5));
+      var sheets = [];
+      var notes = [];
+      if (statutes.length === 0) {
+        return Promise.resolve({ status: 'done', sheets: [], explanation: scopeExplanation(), flow: null, libraryId: null, notes: ['請輸入至少一部法規。'], cancelled: false, saveError: null });
+      }
+      return statutes.reduce(function (chain, statute) {
+        return chain.then(function () {
+          return client.call('scope_table', {
+            statute: statute,
+            year_from: args.yearFrom || undefined,
+            year_to: args.yearTo || undefined,
+            max_items: max,
+          }).then(function (tbl) {
+            var rows = (tbl.rows || []).map(toScopeRow);
+            var analyses = [];
+            return rows.reduce(function (q, row) {
+              return q.then(function () {
+                return client.call('get_judgment_detail', { judgment_id: row.id }).then(function (detail) {
+                  return window.JRScope.analyzeCase(aiComplete, statute, row, detail, fields ? { fields: fields } : {});
+                }).then(function (a) {
+                  analyses.push(a);
+                }).catch(function (err) {
+                  notes.push('「' + row.title + '」未能分析：' + ((err && err.message) || '未知錯誤'));
+                });
+              });
+            }, Promise.resolve()).then(function () {
+              var sheet = { statute: statute, fields: fieldList, rows: rows, analyses: analyses };
+              if (analyses.length === 0) return sheet;
+              return window.JRScope.synthesizeScope(aiComplete, statute, analyses).then(function (syn) {
+                sheet.synthesis = syn;
+                return sheet;
+              }).catch(function (err) {
+                notes.push('綜合分析未完成：' + ((err && err.message) || '未知錯誤'));
+                return sheet;
+              });
+            });
+          }).then(function (sheet) {
+            sheets.push(sheet);
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        return { status: 'done', sheets: sheets, explanation: scopeExplanation(), flow: null, libraryId: null, notes: notes, cancelled: false, saveError: WEB_NO_FILES };
+      });
+    },
+    // 覆核：摘要（待覆核數、高信心數），或套用一個覆核操作（接受、修改、拒絕、批次接受、還原）。
+    'scope.review': function (args) {
+      var J = window.JRScope;
+      var sheets = (args && args.sheets) || [];
+      if (args && args.op) {
+        var applied = J.applyReviewOp(sheets, args.op);
+        return Promise.resolve({ sheets: applied.sheets, changed: applied.changed, summaries: applied.sheets.map(function (s) { return J.summarizeReview(s); }) });
+      }
+      return Promise.resolve({ summaries: sheets.map(function (s) { return J.summarizeReview(s); }) });
     },
     'nl.criteria': function (args) {
       return window.JRNl.interpretCriteria(getAi, String(args && args.text || ''));
