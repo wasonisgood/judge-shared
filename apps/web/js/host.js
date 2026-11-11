@@ -62,6 +62,31 @@
         return { reply: reply, navigate: r.navigate || null, ui: r.ui || [], pending: [] };
       });
     },
+    // 精讀：雲端取得判決原文，由 AI 依欄位整理成文書（核心 briefJudgment）。
+    'brief.run': function (args) {
+      return window.JRAuth.getIdToken().then(function (token) {
+        if (!token) return Promise.reject(new Error('請先登入。'));
+        var fields = (args && args.fields) || [];
+        return fetch('https://judge-remote-mcp-2026.web.app/api/brief', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            judgmentId: String(args && args.judgmentId || ''),
+            focus: String(args && args.focus || ''),
+            length: String(args && args.lengthHint || '一般'),
+            fields: fields,
+          }),
+        });
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (!res.ok) {
+            var map = { subscription_required: '尚未訂閱或訂閱已到期。', monthly_quota_exceeded: '本月 AI 用量已用完。', upstream_auth_failed: '雲端 AI 暫時無法使用（上游金鑰未設定或無效）。', no_body: '這則判決沒有可用的原文。' };
+            throw new Error(json.message || map[json.error] || ('精讀失敗：HTTP ' + res.status));
+          }
+          return { detail: json.detail, doc: json.document };
+        });
+      });
+    },
     // 判決列表匯出（Excel）：雲端產生檔案，取得下載連結後直接下載。
     'exportList': function (args) {
       return window.JRAuth.getIdToken().then(function (token) {
