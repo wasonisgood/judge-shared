@@ -25,6 +25,34 @@
   // core 的 interpret* 介面需要 () => Promise<AiComplete>。
   function getAi() { return Promise.resolve(aiComplete); }
 
+  // 網頁版的設定預設值（精讀欄位取自核心的預設欄位）。
+  var WEB_SETTINGS_DEFAULTS = {
+    aiProvider: 'anthropic',
+    aiAuthMode: 'cloud',
+    aiBaseUrl: '',
+    aiModel: WEB_AI_MODEL,
+    hasKey: true,
+    cacheDays: 7,
+    defaultJurisdiction: 'tw',
+    federation: {},
+    scopeReviewPolicy: null,
+    briefFields: [
+      { name: '一、案件事實', description: '', enabled: true },
+      { name: '二、爭點', description: '', enabled: true },
+      { name: '三、當事人主張', description: '', enabled: true },
+      { name: '四、法院見解', description: '', enabled: true },
+      { name: '五、結論', description: '', enabled: true },
+      { name: '六、與使用者重點相關的整理', description: '', enabled: true },
+    ],
+  };
+  var WEB_SETTINGS_KEY = 'jrWebSettings';
+  function readWebSettings() {
+    try { return JSON.parse(window.localStorage.getItem(WEB_SETTINGS_KEY) || '{}') || {}; } catch (e) { return {}; }
+  }
+  function writeWebSettings(obj) {
+    try { window.localStorage.setItem(WEB_SETTINGS_KEY, JSON.stringify(obj)); } catch (e) { /* 無法保存時仍可在本次開啟中使用 */ }
+  }
+
   function toItem(it) {
     return { id: it.id, title: it.title, dateIso: it.date_iso || null, cause: it.cause || '', href: it.href || null };
   }
@@ -86,6 +114,20 @@
           return { detail: json.detail, doc: json.document };
         });
       });
+    },
+    // 設定（網頁版）：AI 由雲端與訂閱提供，不需要本機金鑰。欄位與偏好只保存在這個瀏覽器（不含任何金鑰）。
+    'settings.get': function () {
+      return Promise.resolve(Object.assign({}, WEB_SETTINGS_DEFAULTS, readWebSettings()));
+    },
+    'settings.set': function (patch) {
+      var current = readWebSettings();
+      var next = Object.assign({}, current, patch || {});
+      delete next.apiKey;
+      writeWebSettings(next);
+      return Promise.resolve(Object.assign({}, WEB_SETTINGS_DEFAULTS, next));
+    },
+    'jurisdictions.list': function () {
+      return Promise.resolve([{ id: 'tw', name: '司法院裁判書查詢系統', country: '台灣' }]);
     },
     // 判決列表匯出（Excel）：雲端產生檔案，取得下載連結後直接下載。
     'exportList': function (args) {
