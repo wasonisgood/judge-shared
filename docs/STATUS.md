@@ -1,0 +1,110 @@
+# 進度與未完成事項
+
+更新：2026-11-11。「已驗證」指在瀏覽器實際操作或以線上端點實測過；「僅單元測試」指只有程式測試，尚未在畫面或線上驗證。
+
+## 1. 已完成
+
+### 共用套件與發版
+- [x] `@judge/core` 0.1.2 發版（tarball）；含 `nlIntent`（自然語言解析）。
+- [x] `@judge/ui` 0.1.4 發版（tarball）；外殼、平台區分（`data-desktop-only`）、保存訊息依實際狀態顯示。
+- [x] 桌面端改用釘住版本的 core 與 ui；單元測試 230/230。
+- [x] 雲端改用釘住版本的 core（0.1.1）；測試 47/47。
+- [x] 桌面端 4.3.0 已發版（Release 含安裝檔；首頁下載連結已驗證指向它）。
+
+### 網頁版
+- [x] 產品介紹首頁（上線，已驗證；桌面下載連結、MCP 網址與複製按鈕）。
+- [x] 網頁內 Google 登入（Firebase Auth，已驗證登入狀態）。
+- [x] 判決列表關鍵字搜尋（已驗證，回傳 20 筆）。
+- [x] 自然語言搜尋：網頁版 → 核心解析 → 雲端 AI 代理 → 司法院搜尋（已驗證）。
+- [x] 精讀：選定判決 → 整理成文書（主文、理由等段落）（已驗證）。
+- [x] 精讀文書匯出 Word（API 已驗證，產生 11 KB 的 docx；畫面按鈕已接線）。
+- [x] 判決列表匯出 Excel（API 已驗證，產生 6.9 KB 的 xlsx；畫面按鈕已接線）。
+- [x] 助理：對話交給雲端代理，代理用工具查判決後回答（API 已驗證，會呼叫 `quick_search`、`get_judgment_detail`）。
+- [x] 設定頁的欄位與偏好（預設值取自核心；保存在本機，不含金鑰）。
+- [x] 取權杖一律強制更新（修正偶發 401）。
+- [x] 保存訊息誠實標示：網頁版不保存檔案，會顯示「網頁版尚未提供檔案保存」。
+
+### 雲端
+- [x] MCP：9 個工具、OAuth、CORS 白名單、接受 Firebase ID Token。
+- [x] `aiProxy`：Anthropic 原生（預設）、OpenRouter 保留（不測）、模型退役降級、上游認證錯誤回 502。
+- [x] `/api/agent`：工具呼叫迴圈、步數上限 6、工具錯誤以 `is_error` 回傳、畫面操作工具（`ui_set_field`、`ui_navigate`）、下載連結欄位 `downloads`。
+- [x] `/api/upload`、`read_upload`、`create_download`（API 與下載已驗證，中文編碼已修正）。
+- [x] `/api/brief`（精讀；JSON 修補；`max_tokens` 依核心要求；temperature 0）。
+- [x] `/api/export/list`、`/api/export/brief`（Storage 下載連結）。
+
+## 2. 未完成（依優先順序）
+
+每一項都寫明：現在的狀態、要改的檔案、驗收方式。
+
+### P1 範圍整理（標編碼標注工序）
+- 狀態：網頁版按鈕的 `api.scope.*` 尚未對應。桌面版核心在 `packages/core/src/pipeline/scopeFlow.ts`、`court/scope.ts`、`ai/analysis.ts`（`analyzeCase`、`synthesizeScope`）。桌面的流程（`apps/desktop/src/main/services/scopeService.ts`）包含：法規引用的判決篩選、逐案編碼（欄位）、覆核、綜合分析、匯出 Excel／Word。
+- 要做：(a) 雲端端點 `/api/scope`（逐案編碼需多次 AI 呼叫，要注意 5 分鐘逾時——考慮分批或改為多次請求）；(b) 網頁版 `host.js` 的 `scope.run`、`scope.export`、`scope.judgmentText`、`scope.controls`；(c) 匯出。
+- 驗收：以「二二八事件處理及賠償條例」為例，在網頁版完整跑完並匯出。
+
+### P2 手動輸入判決（判決列表頁的下半段）
+- 狀態：`search.manual` 未對應。
+- 要做：`host.js` 的 `search.manual`：每行一則網址或 ID，逐筆呼叫 `get_judgment_detail`（或 `getJudgmentDetail`）取基本資料，回傳 `{items, details, cancelled, saveError}`。
+- 驗收：貼上 `TPSV_103_2434_20141119` 與一個完整網址，產生列表。
+
+### P3 納入排除（criteria）
+- 狀態：`criteria.*`（`nl.criteria` 已有，`criteria.suggest`、`criteria.run`、`criteria.review`、`criteria.runs`）未對應。核心有 `suggestCriteria`、`interpretCriteria`；`run` 與 `review` 是逐案核查（AI）。
+- 要做：雲端端點 `/api/criteria`，網頁版對應。依賴「已保存的候選判決」——網頁版沒有保存機制，需要先決定候選判決來源（建議：由前端把列表結果直接傳入）。
+- 驗收：以搜尋結果為候選，跑一次納入排除。
+
+### P4 設計對話（研究設計）
+- 狀態：`design.*`（`design.chat`、`design.get`、`design.setFields`、`design.list`、`design.export`、`design.remove`）未對應。桌面版把研究設計保存在本機（`designStore`）。
+- 要做：設計對話可直接用 `/api/agent`（它已能做工具呼叫與回覆）；欄位保存需要決定：網頁版存在 Firestore（`designs/{uid}/{id}`）或瀏覽器。建議 Firestore，因為要跨裝置。
+- 驗收：建立一個設計、讓助理填欄位、保存、重新載入後仍在。
+
+### P5 段落檢索（semantic）
+- 狀態：`semantic.*`（`run`、`fullText`、`ask`、`onProgress`）未對應。桌面版核心有 `semanticRank`。
+- 要做：`/api/semantic`（對已取得的全文做語意排序與問答）。
+- 驗收：對一組判決做段落檢索並顯示結果。
+
+### P6 檔案頁籤與保存
+- 狀態：網頁版沒有保存。桌面版的「檔案」頁籤保存搜尋結果、精讀與範圍整理結果。
+- 要做：Firestore `saved/{uid}/{id}`（中繼資料）＋ Storage（內容）；網頁版 `files.*`、`library.*` 對應；並讓搜尋與精讀的「已存入」訊息為真。
+- 驗收：搜尋後在「檔案」頁籤看到該結果，重新整理後仍在。
+
+### P7 上傳的畫面入口與 PDF
+- 狀態：`/api/upload` 只有 API，沒有畫面入口；只接受文字檔。
+- 要做：網頁版加上檔案選擇（`<input type=file>`，讀成 base64 送 `/api/upload`）；PDF 文字抽取（核心 `pdf/judgmentPdf.ts` 需確認能在雲端執行，因為 `pdfjs-dist` 會嘗試載入 `canvas`，目前會印出警告但可能仍可用）。
+- 驗收：上傳一個 txt，助理能讀取並摘要。
+
+### P8 匯出的其他格式與 Word 範圍整理
+- 狀態：精讀 Word 與列表 Excel 已完成。範圍整理的 Excel／Word、設計文字匯出尚未。
+- 要做：與 P1 一起做。
+
+### P9 助理的畫面操作（驗證）
+- 狀態：代理會回傳 `ui`（欄位設定）與 `navigate`，網頁版的助理控制器會套用。程式已接通，但**尚未在畫面上實際確認**。
+- 驗收：在助理輸入「幫我把判決列表的最多筆數改成 5」，確認欄位實際變更；輸入「切到設定頁」，確認頁面切換。
+
+### P10 手機版與版面
+- 狀態：首頁在桌面寬度已驗證；手機寬度（390 px）的截圖未成功（瀏覽器縮放沒有生效）。
+- 要做：用其他方式（例如 Chrome 開發者工具的裝置模擬，或 CSS 的 `@media` 檢查）確認網頁版在手機上可用；特別是列表表格與精讀頁。
+
+### P11 端到端測試
+- 狀態：只有各功能的單點驗證。
+- 要做：寫一份測試清單（從登入到匯出），在瀏覽器依序執行並記錄結果（建議放在 `docs/testing/e2e-web.md`）。
+
+### P12 其他
+- 模型退役的通知：目前只寫日誌，尚未設定 Cloud Logging 的警示。
+- 下載連結沒有到期時間：需要設定 Storage 生命週期或改用有時效的簽章網址。
+- `aiProxy` 的 `ALLOWED_MODELS`：降級鏈的第二個模型 `anthropic/claude-haiku-5.5` 在目前金鑰下不可用（上游回報），需要重新確認可用的模型。
+- 「匯出 Word」以外的精讀功能（例如逐段標注）尚未對應。
+- 桌面版的 `docs/SPEC.md` §10 與雲端實際做法不一致（司法院抓取位置），需要重新決定並更新文件。
+
+## 3. 已知問題（目前知道的）
+
+- 代理的回答曾寫出沒有依據的年份（國家賠償法制定年）。系統提示詞已要求只根據工具結果回答，但**尚未用同一題重新驗證**。
+- 精讀的 AI 輸出有時會截斷或格式錯誤；已修補，但仍可能失敗。失敗時的訊息是「AI 回覆不是有效的 JSON」。
+- 搜尋偶爾回「查無查詢結果入口（可能無結果，或遭風控）」——這是司法院網站端的回應，無法判斷是無結果還是限流。
+- 網頁版的設定頁會顯示「AI 金鑰（已設定）」——這是為了符合畫面，實際由雲端與訂閱提供，不需要本機金鑰。
+- 測試用的訂閱（`subscriptions/{測試帳號 uid}`，`source: manual-test`）仍存在；正式上線前需要清除或改為正式的付費流程。
+
+## 4. 接手建議
+
+1. 先讀 `ARCHITECTURE.md`，再讀本文件。
+2. 優先做 P1（範圍整理），因為它是桌面版的核心流程。
+3. 每完成一項：更新本文件、在瀏覽器實際驗證、然後提交。
+4. 不要把任何金鑰寫進文件或程式。
