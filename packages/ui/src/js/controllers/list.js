@@ -70,7 +70,7 @@
         JR.setStatus(status, r.question);
         return;
       }
-      var head = r.items.length ? '找到 ' + r.items.length + ' 筆，已存入「檔案」。' : '沒有找到符合的判決。';
+      var head = r.items.length ? '找到 ' + r.items.length + ' 筆，' + (r.saveError ? '（未存入檔案：' + r.saveError + '）' : '已存入「檔案」。') : '沒有找到符合的判決。';
       var tail = r.status === 'capped' ? ' ' + r.advice : '';
       var extra = noteText(r);
       var ok = r.items.length && r.status !== 'capped' && !r.cancelled && !r.saveError;
@@ -168,7 +168,7 @@
           $('listScreen').disabled = r.items.length === 0;
           showListItems(r.items);
           var extra = noteText(r);
-          var msg = r.items.length ? '找到 ' + r.items.length + ' 筆，已存入「檔案」。' : '沒有找到符合的判決，請換個關鍵字再試。';
+          var msg = r.items.length ? '找到 ' + r.items.length + ' 筆，' + (r.saveError ? '（未存入檔案：' + r.saveError + '）' : '已存入「檔案」。') : '沒有找到符合的判決，請換個關鍵字再試。';
           JR.setStatus($('listStatus'), msg + (extra ? '　' + extra : ''), r.items.length && !r.cancelled && !r.saveError ? 'ok' : 'error');
           $('listExport').disabled = r.items.length === 0;
         } catch (err) {
@@ -200,7 +200,7 @@
           showListItems(r.items);
           $('listExport').disabled = r.items.length === 0;
           var extra = noteText(r);
-          if (r.items.length) JR.setStatus($('manualStatus'), '已產生 ' + r.items.length + ' 筆，已存入「檔案」。' + (extra ? '　' + extra : ''), r.cancelled || r.saveError ? 'error' : 'ok');
+          if (r.items.length) JR.setStatus($('manualStatus'), '已產生 ' + r.items.length + ' 筆，' + (r.saveError ? '（未存入檔案：' + r.saveError + '）' : '已存入「檔案」。') + (extra ? '　' + extra : ''), r.cancelled || r.saveError ? 'error' : 'ok');
           else JR.setStatus($('manualStatus'), '沒有可用的判決。請確認每行是判決網址或 ID。' + (extra ? '　' + extra : ''), 'error');
         } catch (err) {
           if (seq === state.listSeq) JR.setStatus($('manualStatus'), '產生失敗：' + JR.errText(err), 'error');

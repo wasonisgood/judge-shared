@@ -53,6 +53,9 @@
     try { window.localStorage.setItem(WEB_SETTINGS_KEY, JSON.stringify(obj)); } catch (e) { /* 無法保存時仍可在本次開啟中使用 */ }
   }
 
+  // 網頁版目前沒有「檔案」功能：結果只顯示在本頁，不會保存（請照實標示）。
+  var WEB_NO_FILES = '網頁版尚未提供檔案保存，結果只顯示在本頁，請自行匯出。';
+
   function toItem(it) {
     return { id: it.id, title: it.title, dateIso: it.date_iso || null, cause: it.cause || '', href: it.href || null };
   }
@@ -111,7 +114,7 @@
             var map = { subscription_required: '尚未訂閱或訂閱已到期。', monthly_quota_exceeded: '本月 AI 用量已用完。', upstream_auth_failed: '雲端 AI 暫時無法使用（上游金鑰未設定或無效）。', no_body: '這則判決沒有可用的原文。' };
             throw new Error(json.message || map[json.error] || ('精讀失敗：HTTP ' + res.status));
           }
-          return { detail: json.detail, doc: json.document };
+          return { detail: json.detail, doc: json.document, saveError: WEB_NO_FILES };
         });
       });
     },
@@ -128,6 +131,23 @@
     },
     'jurisdictions.list': function () {
       return Promise.resolve([{ id: 'tw', name: '司法院裁判書查詢系統', country: '台灣' }]);
+    },
+    // 精讀文書匯出（Word）：雲端產生檔案，取得下載連結後直接下載。
+    'brief.export': function (args) {
+      return window.JRAuth.getIdToken().then(function (token) {
+        if (!token) return Promise.reject(new Error('請先登入。'));
+        return fetch('https://judge-remote-mcp-2026.web.app/api/export/brief', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+          body: JSON.stringify({ detail: (args && args.detail) || {}, doc: (args && args.doc) || {} }),
+        });
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (!res.ok) throw new Error(json.message || ('匯出失敗：HTTP ' + res.status));
+          window.location.href = json.url;
+          return { canceled: false, filePath: json.name };
+        });
+      });
     },
     // 判決列表匯出（Excel）：雲端產生檔案，取得下載連結後直接下載。
     'exportList': function (args) {
@@ -152,7 +172,7 @@
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {
-        return { items: (d.items || []).map(toItem), details: null, cancelled: false, saveError: null };
+        return { items: (d.items || []).map(toItem), details: null, cancelled: false, saveError: WEB_NO_FILES };
       });
     },
   };
