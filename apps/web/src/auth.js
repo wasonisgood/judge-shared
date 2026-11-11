@@ -27,7 +27,8 @@ window.JRAuth = {
     // 頁面剛載入時登入狀態尚未初始化，必須先等它完成，否則會拿到空值。
     await auth.authStateReady();
     const u = auth.currentUser;
-    return u ? u.getIdToken() : null;
+    // 每次都取新的 ID Token（權杖約一小時到期；強制更新可避免拿到過期的權杖）。
+    return u ? u.getIdToken(true) : null;
   },
   signInGoogle() {
     const provider = new GoogleAuthProvider();
