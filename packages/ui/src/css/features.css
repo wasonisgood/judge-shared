@@ -82,7 +82,7 @@
 
 /* 範圍整理表：欄位多，表格設定最小寬度，超出時橫向捲動，避免文字被擠成一字一行 */
 .scope-block .table { min-width: 1240px; }
-.scope-block .table th, .scope-block .table td { min-width: 70px; }
+.scope-block .table th, .scope-block .table td { min-width: 150px; }
 .scope-block .table td:nth-child(n+8) { min-width: 150px; }
 
 /* 助理面板的進度卡 */
