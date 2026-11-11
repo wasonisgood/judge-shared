@@ -56,6 +56,17 @@
   // 網頁版目前沒有「檔案」功能：結果只顯示在本頁，不會保存（請照實標示）。
   var WEB_NO_FILES = '網頁版尚未提供檔案保存，結果只顯示在本頁，請自行匯出。';
 
+  // 手動輸入：一行可以是判決網址（取 id 參數）或判決 ID。空行與明顯不是 ID 的內容回傳 null。
+  function manualIdOf(line) {
+    var s = String(line || '').trim();
+    if (!s) return null;
+    var m = /[?&]id=([^&#\s]+)/.exec(s);
+    if (m) {
+      try { s = decodeURIComponent(m[1]); } catch (e) { s = m[1]; }
+    }
+    return /^[^\s<>"']{3,200}$/.test(s) ? s : null;
+  }
+
   // 範圍整理的分析欄位：只取勾選的；沒有設定時回傳 null（核心使用預設欄位）。
   function scopeFieldsFromArgs(args) {
     var list = (args && Array.isArray(args.fields)) ? args.fields : [];
@@ -168,6 +179,34 @@
           window.location.href = json.url;
           return { canceled: false, filePath: json.name };
         });
+      });
+    },
+    // 手動輸入判決：每行一則網址或 ID，逐筆取得判決資料（MCP get_judgment_detail）；最多 20 則，單則失敗只記錄。
+    'search.manual': function (args) {
+      var lines = String((args && args.text) || '').split(/\n/).map(manualIdOf).filter(Boolean);
+      var uniq = lines.filter(function (id, i) { return lines.indexOf(id) === i; }).slice(0, 20);
+      var items = [];
+      var details = {};
+      var notes = [];
+      if (uniq.length === 0) return Promise.resolve({ items: [], details: {}, cancelled: false, saveError: null, notes: [] });
+      return uniq.reduce(function (chain, id) {
+        return chain.then(function () {
+          return client.call('get_judgment_detail', { judgment_id: id }).then(function (d) {
+            var m = d.meta || {};
+            details[id] = d;
+            items.push({
+              id: id,
+              title: m.title || id,
+              dateIso: m.dateIso || null,
+              cause: m.cause || '',
+              href: m.sourceUrl || null,
+            });
+          }).catch(function (err) {
+            notes.push('「' + id + '」取得失敗：' + ((err && err.message) || '未知錯誤'));
+          });
+        });
+      }, Promise.resolve()).then(function () {
+        return { items: items, details: details, cancelled: false, saveError: WEB_NO_FILES, notes: notes };
       });
     },
     // 範圍整理：按鈕可用狀態（核心 scopeUiState，與桌面端相同的規則）。
