@@ -24,6 +24,8 @@ window.JRAuth = {
     return onAuthStateChanged(auth, (u) => cb(toUser(u)));
   },
   async getIdToken() {
+    // 頁面剛載入時登入狀態尚未初始化，必須先等它完成，否則會拿到空值。
+    await auth.authStateReady();
     const u = auth.currentUser;
     return u ? u.getIdToken() : null;
   },
