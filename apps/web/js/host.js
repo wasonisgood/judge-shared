@@ -72,6 +72,13 @@
       });
     });
   }
+  // 檔案列表的摘要（網頁版雲端只存中繼資料，摘要由內容推算）。
+  function librarySummary(kind, p) {
+    if (kind === 'list') return ((p.items || []).length) + ' 筆判決';
+    if (kind === 'scope') return ((p.sheets || []).length) + ' 個法規';
+    if (kind === 'brief') return '精讀文書';
+    return '';
+  }
   function saveLibrary(kind, title, payload) {
     return window.JRAuth.getIdToken().then(function (token) {
       if (!token) return '尚未登入，結果只顯示在本頁。';
@@ -257,8 +264,9 @@
         var items = j.items || [];
         return Promise.all(items.map(function (it) {
           return libraryFetch('GET', '/' + encodeURIComponent(it.id)).then(function (full) {
-            return Object.assign({}, it, { payload: full.payload || {} });
-          }, function () { return it; });
+            var p = full.payload || {};
+            return Object.assign({}, it, { payload: p, summary: librarySummary(it.kind, p) });
+          }, function () { return Object.assign({}, it, { summary: '' }); });
         }));
       });
     },
