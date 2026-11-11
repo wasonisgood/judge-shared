@@ -100,3 +100,4 @@ export * from './pipeline/coding';
 export * from './pipeline/coding-review';
 export * from './pipeline/scopeTrace';
 export * from './pipeline/scopeFlow';
+export * from './ai/nlIntent';

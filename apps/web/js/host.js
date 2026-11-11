@@ -29,6 +29,8 @@
     },
     'auth.cancel': function () { return Promise.resolve({ signedIn: false, message: '已取消登入。' }); },
     'auth.signOut': function () { return window.JRAuth.signOut().then(function () { return { ok: true }; }); },
+    // 網頁版沒有 AI 的自然語言解析：輸入就是關鍵字，照原樣搜尋。
+    'nl.interpret': function () { return Promise.resolve({ mode: 'keyword', fields: {} }); },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {
