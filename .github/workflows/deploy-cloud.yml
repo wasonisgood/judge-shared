@@ -1,9 +1,11 @@
-name: 部署雲端函式與託管（手動）
+name: 部署雲端函式與網站（手動）
 
 # 只能手動執行（workflow_dispatch），不會因推送而自動部署。
+# 做的事：建置網頁版（產品介紹頁＋網頁工具）→ 放進 judge-remote-mcp 的 hosting → 建置函式 → firebase deploy。
 # 需要的祕密（在本存儲庫的 Settings → Secrets 設定）：
 #   REMOTE_REPO_TOKEN          — 可讀取私有的 wasonisgood/judge-remote-mcp 的權杖（fine-grained，唯讀 Contents）
-#   FIREBASE_SERVICE_ACCOUNT   — Firebase 部署用服務帳號的 JSON 金鑰
+#   FIREBASE_SERVICE_ACCOUNT   — Firebase 部署用服務帳號的 JSON 金鑰（需 Cloud Functions、Hosting 部署權限）
+#   REMOTE_DOT_ENV             — judge-remote-mcp/functions/.env 的完整內容（不在版本控制內；含 JUDGE_WEB_CONFIG、PUBLIC_ORIGIN 等）
 on:
   workflow_dispatch:
     inputs:
@@ -23,6 +25,9 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - name: 取得 judge-shared（本存儲庫）
+        uses: actions/checkout@v4
+
       - name: 取得 judge-remote-mcp
         uses: actions/checkout@v4
         with:
@@ -35,6 +40,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: 建置網頁版（產品介紹頁與網頁工具）
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm test
+          npm run build
+
+      - name: 放入 hosting 目錄
+        run: node scripts/stage-hosting.mjs remote
+
+      - name: 寫入函式設定（functions/.env）
+        env:
+          DOT_ENV: ${{ secrets.REMOTE_DOT_ENV }}
+        run: |
+          if [ -z "$DOT_ENV" ]; then echo "未設定 REMOTE_DOT_ENV"; exit 1; fi
+          printf '%s\n' "$DOT_ENV" > remote/functions/.env
 
       - name: 建置雲端函式（會安裝釘住版本的 @judge/core）
         working-directory: remote/functions
@@ -51,7 +73,7 @@ jobs:
           printf '%s' "$SA_JSON" > "$RUNNER_TEMP/firebase-sa.json"
           echo "GOOGLE_APPLICATION_CREDENTIALS=$RUNNER_TEMP/firebase-sa.json" >> "$GITHUB_ENV"
 
-      - name: 部署函式與託管
+      - name: 部署函式與網站
         working-directory: remote
         env:
           PROJECT: ${{ inputs.project }}

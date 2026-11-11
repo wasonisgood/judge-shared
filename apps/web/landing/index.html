@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.github.com;">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="司法院裁判研究：搜尋司法院公開裁判書，整理成表格或精讀文書。桌面版、網頁版與雲端 MCP。">
+<title>司法院裁判研究</title>
+<link rel="stylesheet" href="landing.css">
+</head>
+<body>
+<header class="site-head">
+  <a class="wordmark" href="/">司法院裁判研究</a>
+  <nav class="site-nav" aria-label="主要導覽">
+    <a href="#desktop">桌面版</a>
+    <a href="#web">網頁版</a>
+    <a href="#cloud">雲端 MCP</a>
+  </nav>
+</header>
+
+<main>
+  <section class="hero">
+    <p class="kicker">司法院公開裁判書 · 檢索、整理、精讀</p>
+    <h1>把裁判書整理成你要的樣子</h1>
+    <p class="lead">輸入關鍵字或法規，列出確實引用的判決；依分析欄位逐案編碼，每格附判決原文的逐字依據。可以匯出 Excel 或 Word，也可以接到你常用的 AI 聊天工具。</p>
+    <div class="cta">
+      <a class="btn primary" href="#desktop" data-download-cta>下載桌面版</a>
+      <a class="btn" href="app/">進入網頁版</a>
+    </div>
+  </section>
+
+  <section class="product" id="desktop" aria-labelledby="desktop-title">
+    <div class="product-head">
+      <p class="kicker">桌面版 · Windows</p>
+      <h2 id="desktop-title">完整功能，本機執行</h2>
+    </div>
+    <p>判決列表、標編碼標注工序（範圍整理）、單一判決精讀。資料與 API 金鑰只保存在你的電腦。可選用本地 AI 模型，不適合或未安裝時自動改用雲端。</p>
+    <ul class="points">
+      <li>依關鍵字或法規檢索，匯出 Excel 與 Word</li>
+      <li>逐案編碼，附判決原文逐字依據，對不上的標示待覆核</li>
+      <li>自動檢查更新，有新版時下載安裝</li>
+    </ul>
+    <div class="download">
+      <a class="btn primary" id="download-link" href="https://github.com/wasonisgood/judge-desktop/releases/latest">下載最新版</a>
+      <p class="meta" id="download-meta">正在確認最新版本…</p>
+    </div>
+    <p class="note">第一次執行時 Windows 可能顯示 SmartScreen 警告，點「其他資訊」再點「仍要執行」。</p>
+  </section>
+
+  <section class="product" id="web" aria-labelledby="web-title">
+    <div class="product-head">
+      <p class="kicker">網頁版 · 不需安裝</p>
+      <h2 id="web-title">用瀏覽器登入即可使用</h2>
+    </div>
+    <p>以 Google 帳號登入後，直接在瀏覽器搜尋判決。登入在網頁內完成，不會跳轉到其他頁面。目前支援判決搜尋；其餘功能會陸續開放。</p>
+    <div class="download">
+      <a class="btn" href="app/">進入網頁版</a>
+    </div>
+  </section>
+
+  <section class="product" id="cloud" aria-labelledby="cloud-title">
+    <div class="product-head">
+      <p class="kicker">雲端 MCP · 給聊天工具使用</p>
+      <h2 id="cloud-title">接到 ChatGPT、Claude 等聊天工具</h2>
+    </div>
+    <p>遠端 MCP 伺服器，讓聊天客戶端搜尋司法院公開的裁判書、取得全文與片段、依法規做範圍整理。</p>
+    <ol class="steps">
+      <li>在聊天工具新增 MCP 連接器，伺服器網址填入下方的網址。</li>
+      <li>瀏覽器會開啟授權頁，登入後按「同意」。</li>
+      <li>回到聊天工具即可使用搜尋、全文與片段擷取。</li>
+    </ol>
+    <div class="endpoint">
+      <code id="mcp-url">https://judge-remote-mcp-2026.web.app/mcp</code>
+      <button class="btn small" type="button" id="copy-mcp">複製網址</button>
+    </div>
+    <p class="note">資料來源為司法院公開的裁判書查詢系統。本服務不保存查詢內容以外的個人資料。</p>
+  </section>
+</main>
+
+<footer class="site-foot">
+  <p>MIT 授權 · <a href="https://github.com/wasonisgood/judge-desktop">原始碼</a> · <a href="https://github.com/wasonisgood/judge-shared">共用套件</a></p>
+</footer>
+
+<script src="landing.js"></script>
+</body>
+</html>

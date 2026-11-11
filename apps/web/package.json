@@ -4,6 +4,12 @@
   "private": true,
   "scripts": {
     "build": "node build.mjs",
-    "test": "node --test test/"
+    "test": "node --test"
+  },
+  "dependencies": {
+    "firebase": "^11.10.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

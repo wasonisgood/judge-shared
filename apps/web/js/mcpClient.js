@@ -10,32 +10,34 @@
   }
 
   // 呼叫單一工具（tools/call）。回應形狀為 { schema, tool, ok, data, next }，本函式只回傳 data。
+  // getToken 可回傳權杖或其 Promise（Firebase ID Token 需要非同步取得）。
   function createClient(opts) {
     var endpoint = opts.endpoint;
     var fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
     var nextId = 1;
     return {
       call: function (tool, args) {
-        var token = opts.getToken ? opts.getToken() : null;
-        if (!token) return Promise.reject(authRequired());
-        var body = JSON.stringify({
-          jsonrpc: '2.0', id: nextId++, method: 'tools/call',
-          params: { name: tool, arguments: args || {} },
-        });
-        return fetchImpl(endpoint, {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + token },
-          body: body,
+        return Promise.resolve(opts.getToken ? opts.getToken() : null).then(function (token) {
+          if (!token) throw authRequired();
+          var body = JSON.stringify({
+            jsonrpc: '2.0', id: nextId++, method: 'tools/call',
+            params: { name: tool, arguments: args || {} },
+          });
+          return fetchImpl(endpoint, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + token },
+            body: body,
+          });
         }).then(function (res) {
-          if (res.status === 401) return Promise.reject(authRequired('登入已過期，請重新登入。'));
-          if (!res.ok) return Promise.reject(new Error('雲端服務回應錯誤：HTTP ' + res.status));
+          if (res.status === 401) throw authRequired('登入已過期，請重新登入。');
+          if (!res.ok) throw new Error('雲端服務回應錯誤：HTTP ' + res.status);
           return res.json();
         }).then(function (rpc) {
-          if (rpc.error) return Promise.reject(new Error(rpc.error.message || '雲端服務錯誤'));
+          if (rpc.error) throw new Error(rpc.error.message || '雲端服務錯誤');
           var env = rpc.result && (rpc.result.structuredContent ||
             (rpc.result.content && rpc.result.content[0] && JSON.parse(rpc.result.content[0].text)));
-          if (!env) return Promise.reject(new Error('雲端服務回傳格式不正確'));
-          if (!env.ok) return Promise.reject(new Error((env.data && env.data.message) || '工具執行失敗：' + tool));
+          if (!env) throw new Error('雲端服務回傳格式不正確');
+          if (!env.ok) throw new Error((env.data && env.data.message) || '工具執行失敗：' + tool);
           return env.data;
         });
       },
