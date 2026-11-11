@@ -101,7 +101,8 @@
         send();
       });
 
-      V.setOptionHandler(function (o) { send(o.value); });
+      // 選項點擊：送出按鈕的文字（完整、使用者看得懂的回答）。
+      V.setOptionHandler(function (o) { send(o.label); });
 
       $('designAnswer').addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {
