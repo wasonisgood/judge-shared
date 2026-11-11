@@ -5,6 +5,8 @@
 - `packages/core`：`@judge/core`，檢索解析、範圍整理、AI 分析、圖表計算等純邏輯（Node，TypeScript）。網頁版不直接執行它，改由雲端（judge-remote-mcp）呼叫。
 - `packages/ui`：`@judge/ui`，畫面（頁面、元件、控制器）與樣式，桌面版與網頁版共用。外殼需先設定 `window.__JR_HOST = { api, platform }`，再載入 `dist/ui.js` 與 `dist/ui.css`。
 
+- `apps/web`：網頁版外殼。使用同一份 `packages/ui`，只提供 HTTP 版的 `api`（目前尚未接上雲端端點，會顯示「尚未連接」）。建置：`node apps/web/build.mjs`，產物在 `apps/web/dist`。
+
 ## 發版
 
 - core：推送標籤 `core-vX.Y.Z`
