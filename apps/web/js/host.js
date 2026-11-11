@@ -48,16 +48,18 @@
     'nl.interpret': function (args) {
       return window.JRNl.interpretInput(getAi, String(args && args.page || 'list'), String(args && args.text || ''));
     },
-    // 助理：對話交給雲端代理（工具呼叫查判決後回答）。畫面操作（填欄位、切頁）尚未對應，回傳空的 ui／navigate。
+    // 助理：對話交給雲端代理（工具呼叫查判決、設定欄位、切頁）。畫面操作由共用畫面的助理控制器套用。
     'assistant.chat': function (args) {
       var history = (args && args.history) || [];
       var msgs = history.filter(function (h) { return h && (h.role === 'user' || h.role === 'assistant') && h.text; })
         .map(function (h) { return { role: h.role, content: String(h.text) }; });
       msgs.push({ role: 'user', content: String((args && args.text) || '') });
-      return agentChat(msgs).then(function (r) {
+      var catalog = (window.JR && JR.aiBridge && JR.aiBridge.catalog) ? JR.aiBridge.catalog() : [];
+      var context = JSON.stringify(catalog).slice(0, 12000);
+      return agentChat(msgs, context).then(function (r) {
         var reply = r.text || '（沒有回覆）';
         if (r.stopped === 'max_steps') reply += '\n\n（已達查詢步數上限，若結果不完整請縮小問題再問一次。）';
-        return { reply: reply, navigate: null, ui: [], pending: [] };
+        return { reply: reply, navigate: r.navigate || null, ui: r.ui || [], pending: [] };
       });
     },
     'nl.criteria': function (args) {

@@ -83,13 +83,13 @@
   // 助理代理（雲端 /api/agent）：送出純文字對話，回傳 { text, steps, stopped, trace }。
   function createAgentChat(opts) {
     var fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
-    return function (messages) {
+    return function (messages, context) {
       return Promise.resolve(opts.getToken ? opts.getToken() : null).then(function (token) {
         if (!token) throw authRequired();
         return fetchImpl(opts.endpoint, {
           method: 'POST',
           headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + token },
-          body: JSON.stringify({ messages: messages, model: opts.model }),
+          body: JSON.stringify({ messages: messages, model: opts.model, context: context || '' }),
         });
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (json) {
