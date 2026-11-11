@@ -80,6 +80,30 @@
     };
   }
 
+  // 助理代理（雲端 /api/agent）：送出純文字對話，回傳 { text, steps, stopped, trace }。
+  function createAgentChat(opts) {
+    var fetchImpl = opts.fetch || (typeof fetch === 'function' ? fetch : null);
+    return function (messages) {
+      return Promise.resolve(opts.getToken ? opts.getToken() : null).then(function (token) {
+        if (!token) throw authRequired();
+        return fetchImpl(opts.endpoint, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', accept: 'application/json', authorization: 'Bearer ' + token },
+          body: JSON.stringify({ messages: messages, model: opts.model }),
+        });
+      }).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (json) {
+          if (res.status === 401) throw authRequired('登入已過期，請重新登入。');
+          if (!res.ok) {
+            var detail = AI_ERRORS[res.status] || ('助理服務回應錯誤：HTTP ' + res.status);
+            throw new Error(detail + (json.error ? '（' + json.error + '）' : ''));
+          }
+          return json;
+        });
+      });
+    };
+  }
+
   // PKCE（S256）：產生 verifier 與 challenge。需要 crypto.subtle（瀏覽器與 Node 22 皆有）。
   function base64url(bytes) {
     var s = '';
@@ -97,7 +121,7 @@
     });
   }
 
-  var api = { createClient: createClient, createAiComplete: createAiComplete, createPkce: createPkce, base64url: base64url, authRequired: authRequired };
+  var api = { createClient: createClient, createAiComplete: createAiComplete, createAgentChat: createAgentChat, createPkce: createPkce, base64url: base64url, authRequired: authRequired };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.JRMcp = api;
 })(typeof window !== 'undefined' ? window : globalThis);

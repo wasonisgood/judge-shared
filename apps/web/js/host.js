@@ -17,6 +17,11 @@
     model: WEB_AI_MODEL,
     getToken: function () { return window.JRAuth.getIdToken(); },
   });
+  var agentChat = window.JRMcp.createAgentChat({
+    endpoint: 'https://judge-remote-mcp-2026.web.app/api/agent',
+    model: WEB_AI_MODEL,
+    getToken: function () { return window.JRAuth.getIdToken(); },
+  });
   // core 的 interpret* 介面需要 () => Promise<AiComplete>。
   function getAi() { return Promise.resolve(aiComplete); }
 
@@ -42,6 +47,18 @@
     // 自然語言解析：與桌面端相同的 core 邏輯（window.JRNl），AI 經雲端 aiProxy 呼叫。
     'nl.interpret': function (args) {
       return window.JRNl.interpretInput(getAi, String(args && args.page || 'list'), String(args && args.text || ''));
+    },
+    // 助理：對話交給雲端代理（工具呼叫查判決後回答）。畫面操作（填欄位、切頁）尚未對應，回傳空的 ui／navigate。
+    'assistant.chat': function (args) {
+      var history = (args && args.history) || [];
+      var msgs = history.filter(function (h) { return h && (h.role === 'user' || h.role === 'assistant') && h.text; })
+        .map(function (h) { return { role: h.role, content: String(h.text) }; });
+      msgs.push({ role: 'user', content: String((args && args.text) || '') });
+      return agentChat(msgs).then(function (r) {
+        var reply = r.text || '（沒有回覆）';
+        if (r.stopped === 'max_steps') reply += '\n\n（已達查詢步數上限，若結果不完整請縮小問題再問一次。）';
+        return { reply: reply, navigate: null, ui: [], pending: [] };
+      });
     },
     'nl.criteria': function (args) {
       return window.JRNl.interpretCriteria(getAi, String(args && args.text || ''));

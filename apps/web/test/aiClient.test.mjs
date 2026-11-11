@@ -47,3 +47,19 @@ test('AI：502（上游金鑰無效）顯示中文說明，不被當成登入過
   const ai = createAiComplete({ endpoint: 'x', model: 'm', getToken: async () => 't', fetch: async () => jsonRes(502, { error: 'upstream_auth_failed' }) });
   await assert.rejects(ai('s', 'u', 10), (e) => /上游金鑰/.test(e.message) && e.code !== 'auth_required');
 });
+
+test('助理代理：送出對話（含 user/assistant 歷史）並回傳 JSON；401 視為登入過期', async () => {
+  const { createAgentChat } = require('../js/mcpClient.js');
+  let seen;
+  const chat = createAgentChat({
+    endpoint: 'https://example.test/api/agent', model: 'm', getToken: async () => 'tok',
+    fetch: async (url, init) => { seen = { url, body: JSON.parse(init.body), auth: init.headers.authorization }; return jsonRes(200, { text: '找到 2 筆', steps: 2, stopped: 'done', trace: [] }); },
+  });
+  const out = await chat([{ role: 'user', content: '前一句' }, { role: 'assistant', content: '好' }, { role: 'user', content: '找國賠' }]);
+  assert.equal(seen.url, 'https://example.test/api/agent');
+  assert.equal(seen.auth, 'Bearer tok');
+  assert.equal(seen.body.messages.length, 3);
+  assert.equal(out.text, '找到 2 筆');
+  const expired = createAgentChat({ endpoint: 'x', model: 'm', getToken: async () => 't', fetch: async () => jsonRes(401, {}) });
+  await assert.rejects(expired([{ role: 'user', content: 'q' }]), (e) => e.code === 'auth_required');
+});
