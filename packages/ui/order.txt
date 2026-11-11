@@ -25,6 +25,7 @@ js/components/briefFieldRow.js
 js/components/codingFieldRow.js
 js/components/assistMessages.js
 js/components/fileItem.js
+js/components/markdown.js
 js/components/criteriaRow.js
 js/views/listView.js
 js/views/scopeView.js

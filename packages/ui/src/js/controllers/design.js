@@ -47,12 +47,14 @@
     }, fail);
   }
 
-  function send() {
-    var text = $('designAnswer').value.trim();
+  /** 送出一則回答：預設取輸入框的文字；選項按鈕會傳入該選項的完整回答。 */
+  function send(override) {
+    var fromBox = typeof override !== 'string';
+    var text = (fromBox ? $('designAnswer').value : override).trim();
     if (!text) { status('請輸入內容再送出。', 'error'); return; }
     if (JR.jobs.isBusy(PAGE)) { status('助理正在回覆，請等候或按「取消」。', 'error'); return; }
     var runId = JR.jobs.start(PAGE, 'designCancel');
-    $('designAnswer').value = '';
+    if (fromBox) $('designAnswer').value = '';
     V.appendPending(text);
     status('助理回覆中…');
     api.design.chat({ runId: runId, id: current || undefined, text: text }).then(function (r) {
@@ -98,6 +100,8 @@
         ev.preventDefault();
         send();
       });
+
+      V.setOptionHandler(function (o) { send(o.value); });
 
       $('designAnswer').addEventListener('keydown', function (ev) {
         if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) {

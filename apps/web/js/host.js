@@ -53,6 +53,43 @@
     try { window.localStorage.setItem(WEB_SETTINGS_KEY, JSON.stringify(obj)); } catch (e) { /* 無法保存時仍可在本次開啟中使用 */ }
   }
 
+  // 研究設計（雲端）：需要登入。runId 用來取消進行中的對話（AbortController）。
+  var DESIGN_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/design';
+  var designAborts = {};
+  var DESIGN_ERRORS = {
+    subscription_required: '尚未訂閱或訂閱已到期。',
+    monthly_quota_exceeded: '本月 AI 用量已用完。',
+    upstream_auth_failed: '雲端 AI 暫時無法使用（上游金鑰未設定或無效）。',
+    not_found: '找不到這筆研究設計，可能已被刪除。',
+  };
+  function designFetch(method, suffix, body, runId) {
+    return window.JRAuth.getIdToken().then(function (token) {
+      if (!token) return Promise.reject(new Error('請先登入。'));
+      var init = { method: method, headers: { authorization: 'Bearer ' + token } };
+      if (body !== undefined) {
+        init.headers['content-type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      var ctrl = null;
+      if (runId) {
+        ctrl = new AbortController();
+        designAborts[runId] = ctrl;
+        init.signal = ctrl.signal;
+      }
+      return fetch(DESIGN_ENDPOINT + suffix, init).then(function (res) {
+        return res.json().catch(function () { return {}; }).then(function (j) {
+          if (!res.ok) throw new Error(j.message || DESIGN_ERRORS[j.error] || ('研究設計失敗：HTTP ' + res.status));
+          return j;
+        });
+      }, function (err) {
+        if (err && err.name === 'AbortError') throw new Error('已取消。');
+        throw err;
+      }).finally(function () {
+        if (runId) delete designAborts[runId];
+      });
+    });
+  }
+
   // 檔案庫：登入後把結果保存到雲端（與桌面端「檔案」相同）。回傳 null 表示已保存，否則是失敗原因。
   var LIBRARY_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/library';
   // 檔案庫的一般呼叫（需要登入）：失敗時拋出錯誤，訊息來自雲端。
@@ -276,6 +313,36 @@
     'library.remove': function (args) {
       return libraryFetch('DELETE', '/' + encodeURIComponent(args.id));
     },
+    // 研究設計：多輪對話與欄位保存在雲端（/api/design）。AI 的回覆以結構化的 respond 送回（回覆文字＋選項）。
+    'design.list': function () {
+      return designFetch('GET', '').then(function (j) { return j.items || []; });
+    },
+    'design.get': function (args) {
+      return designFetch('GET', '/' + encodeURIComponent(args.id));
+    },
+    'design.chat': function (args) {
+      return designFetch('POST', '/chat', { id: (args && args.id) || undefined, text: String((args && args.text) || '') }, args && args.runId);
+    },
+    'design.setFields': function (args) {
+      return designFetch('PATCH', '/' + encodeURIComponent(args.id), { fields: args.fields || {} });
+    },
+    'design.remove': function (args) {
+      return designFetch('DELETE', '/' + encodeURIComponent(args.id));
+    },
+    'design.export': function (args) {
+      return designFetch('POST', '/export', { id: args.id, format: args.format === 'txt' ? 'txt' : 'docx' }).then(function (json) {
+        window.location.href = json.url;
+        return { canceled: false, filePath: json.name };
+      });
+    },
+    // 工作取消：以 runId 中止進行中的請求（網頁版的雲端工作）。
+    'jobs.cancel': function (args) {
+      var id = args && args.id;
+      if (id && designAborts[id]) designAborts[id].abort();
+      return Promise.resolve({ ok: true });
+    },
+    'jobs.list': function () { return Promise.resolve([]); },
+    'jobs.onChanged': function () { /* 網頁版沒有背景工作橫幅 */ },
     // 範圍整理：按鈕可用狀態（核心 scopeUiState，與桌面端相同的規則）。
     'scope.controls': function (args) {
       return Promise.resolve(window.JRScope.scopeUiState(args || {}));

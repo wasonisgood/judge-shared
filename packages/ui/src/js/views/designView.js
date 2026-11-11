@@ -5,11 +5,32 @@
   var FIELD_IDS = ['question', 'subject', 'variable', 'yearFrom', 'yearTo', 'statute', 'caseType', 'courtLevel'];
   var WELCOME = '描述你想研究的問題即可開始。例如：「我覺得消費者訴訟的判決都對消費者不利，想知道是不是真的」。助理會追問需要確認的條件，並可替你填入欄位、試搜尋判決數。';
 
+  var optionHandler = null;
+
   function turnNode(role, text) {
     var item = JR.el('div', 'design-turn design-turn-' + role);
     item.appendChild(JR.el('div', 'design-turn-who', role === 'user' ? '你' : '助理'));
-    item.appendChild(JR.el('div', 'design-turn-text', text));
+    if (role === 'guide') {
+      // 助理回覆：Markdown（安全的子集，不執行任何標記）。
+      var body = JR.el('div', 'design-turn-text', '');
+      body.appendChild(JR.components.markdown(text));
+      item.appendChild(body);
+    } else {
+      item.appendChild(JR.el('div', 'design-turn-text', text));
+    }
     return item;
+  }
+
+  /** 助理給的選項：按鈕，點選後由控制器當成使用者的回答送出。 */
+  function optionBar(options) {
+    var bar = JR.el('div', 'design-options', '');
+    options.forEach(function (o) {
+      var b = JR.el('button', 'btn small design-option', o.label);
+      b.type = 'button';
+      b.addEventListener('click', function () { if (optionHandler) optionHandler(o); });
+      bar.appendChild(b);
+    });
+    return bar;
   }
 
   function scrollLog() {
@@ -60,7 +81,15 @@
     renderWork: function (view) {
       var log = $('designLog');
       log.textContent = '';
-      view.session.turns.forEach(function (t) { log.appendChild(turnNode(t.role, t.text)); });
+      var turns = view.session.turns;
+      turns.forEach(function (t, i) {
+        var node = turnNode(t.role, t.text);
+        // 只有最後一則助理回覆的選項可以點（較早的選項已過時）。
+        if (t.role === 'guide' && i === turns.length - 1 && t.options && t.options.length) {
+          node.appendChild(optionBar(t.options));
+        }
+        log.appendChild(node);
+      });
       fillFields(view.fields);
       $('designSummary').textContent = view.summaryText;
       $('designToScope').disabled = !view.scopeOptions;
@@ -77,6 +106,7 @@
       scrollLog();
     },
     fillFields: fillFields,
-    readFields: readFields
+    readFields: readFields,
+    setOptionHandler: function (fn) { optionHandler = fn; }
   };
 })(window.JR);
