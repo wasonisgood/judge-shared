@@ -10,6 +10,7 @@ css/annotation.css
 css/worker.css
 css/crawl.css
 js/ns.js
+js/shell.js
 js/core/dom.js
 js/core/jobs.js
 js/core/nl.js
