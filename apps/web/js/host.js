@@ -170,6 +170,25 @@
         });
       });
     },
+    // 範圍整理：按鈕可用狀態（核心 scopeUiState，與桌面端相同的規則）。
+    'scope.controls': function (args) {
+      return Promise.resolve(window.JRScope.scopeUiState(args || {}));
+    },
+    // 依據原文：取得判決全文，找出依據（逐字）的位置。找不到時照實說明，不猜。
+    'scope.judgmentText': function (args) {
+      var id = String(args && args.id || '');
+      var quote = String(args && args.quote || '');
+      return client.call('get_judgment_detail', { judgment_id: id }).then(function (d) {
+        var text = String(d.fullText || '');
+        var title = (d.meta && (d.meta.title || d.meta.id)) || id;
+        if (!text) return { ok: false, title: title, text: '', error: '這則判決沒有可用的原文。' };
+        var at = quote ? text.indexOf(quote) : -1;
+        if (at < 0) {
+          return { ok: false, title: title, text: text, error: '在判決原文中找不到這段依據（可能是 AI 改寫過，請以原文為準）。' };
+        }
+        return { ok: true, title: title, text: text, span: { start: at, end: at + quote.length }, message: '已在原文中標示依據。' };
+      });
+    },
     // 範圍整理匯出：Excel（xlsx）由雲端產生；Word（docx）尚未對應，照實回報。
     'scope.export': function (args) {
       if (args && args.format === 'docx') return Promise.reject(new Error('網頁版的範圍整理 Word 匯出尚未支援，請先匯出 Excel。'));

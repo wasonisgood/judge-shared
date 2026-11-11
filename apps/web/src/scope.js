@@ -15,3 +15,4 @@ export {
   DEFAULT_REVIEW_POLICY,
   normalizeReviewPolicy,
 } from '@judge/core/dist/pipeline/coding-review.js';
+export { scopeUiState, scopeControlStates } from '@judge/core/dist/pipeline/scopeFlow.js';
