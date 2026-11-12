@@ -1,9 +1,10 @@
 // 段落檢索（網頁版）：與桌面版 services/semanticService.ts 相同的流程（關鍵字取候選 → 條件篩選 → 逐筆取內文切段 → AI 段落重排），
 // 在瀏覽器執行；AI 經雲端 aiProxy（由 host.js 注入），候選與內文由 MCP 工具取得。打包為 js/semantic.js，掛到 window.JRSemantic。
 // 網頁版一次最多讀取 WEB_MAX_CANDIDATES 筆內文（每筆都要向司法院取內頁，桌面版上限為 500 筆）。
-export { splitPassages } from '@judge/core/dist/court/passages.js';
-export { rankPassages, groupByCase } from '@judge/core/dist/ai/semanticRank.js';
-export { askScopedQuestion } from '@judge/core/dist/ai/scopedQa.js';
+import { splitPassages } from '@judge/core/dist/court/passages.js';
+import { rankPassages, groupByCase } from '@judge/core/dist/ai/semanticRank.js';
+import { askScopedQuestion } from '@judge/core/dist/ai/scopedQa.js';
+export { splitPassages, rankPassages, groupByCase, askScopedQuestion };
 
 export const WEB_MAX_CANDIDATES = 40;
 
