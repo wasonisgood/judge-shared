@@ -105,6 +105,14 @@
     });
   }
 
+  // base64 轉 UTF-8 文字（純文字檔的匯入用）。
+  function decodeBase64Text(b64) {
+    var bin = atob(b64);
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  }
+
   // 檔案庫：登入後把結果保存到雲端（與桌面端「檔案」相同）。回傳 null 表示已保存，否則是失敗原因。
   var LIBRARY_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/library';
   // 檔案庫的一般呼叫（需要登入）：失敗時拋出錯誤，訊息來自雲端。
@@ -781,38 +789,64 @@
       if (typeof fn === 'function') criteriaListeners.push(fn);
       return function () { criteriaListeners = criteriaListeners.filter(function (x) { return x !== fn; }); };
     },
-    // 匯入判決清單（網頁版）：支援 txt、csv、md；從每一格找出判決網址或判決 ID，再沿用手動輸入的流程取得判決。
-    // Excel、Word、PDF 的解析尚未在網頁版提供。
+    // 匯入判決清單（網頁版）：Excel、CSV、TSV、TXT、Word、PDF 皆可，與桌面版相同的規則。
+    // 解析與欄位判斷在雲端（/api/import/table）；純文字且每行是判決網址或 ID 的檔案不需要 AI，直接走手動輸入的流程。
     'importFile': function () {
       return new Promise(function (resolve, reject) {
         var input = document.createElement('input');
         input.type = 'file';
-        input.accept = '.txt,.csv,.md,text/plain,text/csv,text/markdown';
+        input.accept = '.xlsx,.csv,.tsv,.txt,.docx,.pdf,.md';
         input.addEventListener('cancel', function () { resolve({ canceled: true }); });
         input.addEventListener('change', function () {
           var f = input.files && input.files[0];
           if (!f) { resolve({ canceled: true }); return; }
-          if (f.size > 2 * 1024 * 1024) { reject(new Error('檔案超過 2 MB，請分成較小的檔案。')); return; }
-          if (!/\.(txt|csv|md)$/i.test(f.name)) { reject(new Error('網頁版目前只支援 txt、csv、md；Excel、Word、PDF 請在桌面版匯入。')); return; }
+          if (f.size > 8 * 1024 * 1024) { reject(new Error('檔案超過 8 MB，請分成較小的檔案。')); return; }
           var reader = new FileReader();
-          reader.onload = function () {
-            // 每行一則：判決網址（抓出 URL）或以判決 ID 開頭的行（ID 含逗號，取到第一個空白或引號為止）。
-            var ids = [];
-            String(reader.result || '').split(/\r?\n/).forEach(function (line) {
-              var urls = line.match(/https?:\/\/[^\s",]+/g) || [];
-              urls.forEach(function (u) { ids.push(manualIdOf(u)); });
-              var t = line.replace(/^[\s"']+/, '');
-              var m = /^([A-Z]{2,5}[,_]\d[^\s"]*)/.exec(t);
-              if (m && !urls.length) ids.push(m[1]);
-            });
-            ids = ids.filter(function (x, i, all) { return x && all.indexOf(x) === i; });
-            if (!ids.length) { resolve({ canceled: false, count: 0, fileName: f.name, saveError: null, notes: ['檔案中沒有找到判決網址或判決 ID。'] }); return; }
-            handlers['search.manual']({ text: ids.join('\n') }).then(function (m) {
-              resolve({ canceled: false, count: (m.items || []).length, fileName: f.name, saveError: m.saveError || null, notes: m.notes || [] });
-            }, reject);
-          };
           reader.onerror = function () { reject(new Error('無法讀取檔案。')); };
-          reader.readAsText(f, 'utf-8');
+          reader.onload = function () {
+            var dataUrl = String(reader.result || '');
+            var b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+            var isLineText = /\.(txt|md)$/i.test(f.name);
+            var text = isLineText ? decodeBase64Text(b64) : '';
+            var ids = [];
+            if (isLineText) {
+              text.split(/\r?\n/).forEach(function (line) {
+                var urls = line.match(/https?:\/\/[^\s",]+/g) || [];
+                urls.forEach(function (u) { ids.push(manualIdOf(u)); });
+                var m = /^\s*([A-Z]{2,5}[,_]\d[^\s"]*)/.exec(line);
+                if (m && !urls.length) ids.push(m[1]);
+              });
+              ids = ids.filter(function (x, i, all) { return x && all.indexOf(x) === i; });
+            }
+            var linesTotal = text.split(/\r?\n/).filter(function (l) { return l.trim(); }).length;
+            if (ids.length && ids.length === linesTotal) {
+              // 每行都是判決網址或 ID：沿用手動輸入（不需要 AI）。
+              handlers['search.manual']({ text: ids.join('\n') }).then(function (m) {
+                resolve({ canceled: false, count: (m.items || []).length, fileName: f.name, saveError: m.saveError || null, notes: m.notes || [] });
+              }, reject);
+              return;
+            }
+            // 其他格式：交給雲端解析與判斷欄位，再保存為判決清單。
+            window.JRAuth.getIdToken().then(function (token) {
+              if (!token) throw new Error('請先登入。');
+              return fetch('https://judge-remote-mcp-2026.web.app/api/import/table', {
+                method: 'POST',
+                headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+                body: JSON.stringify({ name: f.name, data: dataUrl.slice(dataUrl.indexOf(',') + 1) }),
+              });
+            }).then(function (res) {
+              return res.json().catch(function () { return {}; }).then(function (j) {
+                if (!res.ok) throw new Error(j.message || ('匯入失敗：HTTP ' + res.status));
+                return j;
+              });
+            }).then(function (j) {
+              var items = j.items || [];
+              return saveLibrary('list', '匯入：' + f.name, { items: items, details: {}, keyword: '匯入' }).then(function (saveError) {
+                resolve({ canceled: false, count: items.length, rowCount: j.rowCount, fileName: f.name, saveError: saveError, notes: [] });
+              });
+            }).catch(reject);
+          };
+          reader.readAsDataURL(f);
         });
         input.click();
       });
