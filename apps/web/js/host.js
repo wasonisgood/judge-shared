@@ -186,11 +186,28 @@
         }).then(function (res) {
           return res.json().catch(function () { return {}; }).then(function (j) {
             if (!res.ok) throw new Error(j.message || ('匯出失敗：HTTP ' + res.status));
-            window.location.href = j.url;
+            downloadFile(j.url, j.name);
             return { canceled: false, filePath: j.name };
           });
         });
       });
+    });
+  }
+
+  // 下載匯出的檔案：先取得內容，再以本機網址下載，不離開應用程式（跨網域的下載網址無法直接用 download 屬性）。
+  function downloadFile(url, name) {
+    return fetch(url).then(function (r) {
+      if (!r.ok) throw new Error('下載失敗：HTTP ' + r.status);
+      return r.blob();
+    }).then(function (blob) {
+      var u = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = u;
+      a.download = name || 'download';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 2000);
     });
   }
 
@@ -371,7 +388,7 @@
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (json) {
           if (!res.ok) throw new Error(json.message || ('匯出失敗：HTTP ' + res.status));
-          window.location.href = json.url;
+          downloadFile(json.url, json.name);
           return { canceled: false, filePath: json.name };
         });
       });
@@ -448,7 +465,7 @@
     },
     'design.export': function (args) {
       return designFetch('POST', '/export', { id: args.id, format: args.format === 'txt' ? 'txt' : 'docx' }).then(function (json) {
-        window.location.href = json.url;
+        downloadFile(json.url, json.name);
         return { canceled: false, filePath: json.name };
       });
     },
@@ -528,7 +545,7 @@
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (json) {
           if (!res.ok) throw new Error(json.message || ('匯出失敗：HTTP ' + res.status));
-          window.location.href = json.url;
+          downloadFile(json.url, json.name);
           return { canceled: false, filePath: json.name };
         });
       });
@@ -545,7 +562,7 @@
       }).then(function (res) {
         return res.json().catch(function () { return {}; }).then(function (json) {
           if (!res.ok) throw new Error(json.message || ('匯出失敗：HTTP ' + res.status));
-          window.location.href = json.url;
+          downloadFile(json.url, json.name);
           return { canceled: false, filePath: json.name };
         });
       });
