@@ -63,7 +63,7 @@
           </form>
         </section>
 
-        <section class="set-sec" aria-labelledby="secMods">
+        <section class="set-sec" aria-labelledby="secMods" data-desktop-only>
           <h2 id="secMods"><span class="set-no">參</span>模組</h2>
           <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>本地 AI</strong><span class="set-desc" id="localAiSummary" role="status">讀取中…</span></div>

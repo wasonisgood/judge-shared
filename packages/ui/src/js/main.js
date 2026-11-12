@@ -17,11 +17,12 @@
   JR.controllers.files.bind();
   JR.controllers.assistant.bind();
   JR.controllers.auth.bind();
+  // 背景工作通知的設定兩個平台都有（網頁版保存在本機，見 host.js）。
+  JR.controllers.worker.bind();
   if (JR.platform === 'desktop') {
     JR.controllers.crawl.bind();
     JR.controllers.localAi.bind();
     JR.controllers.chart.bind();
-    JR.controllers.worker.bind();
   }
   JR.jobs.init();
 
