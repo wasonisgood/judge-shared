@@ -116,6 +116,8 @@ cpSync(join(here, 'js', 'host.js'), join(app, 'js', 'host.js'));
 cpSync(join(here, 'js', 'mcpClient.js'), join(app, 'js', 'mcpClient.js'));
 cpSync(join(ui, 'dist'), join(app, 'ui'), { recursive: true });
 cpSync(join(here, 'landing', 'index.html'), join(out, 'index.html'));
+// 品牌圖示（網站與應用程式共用）：放在網站根目錄的 /brand/。
+cpSync(join(here, 'brand'), join(out, 'brand'), { recursive: true });
 cpSync(join(here, 'landing', 'landing.css'), join(out, 'landing.css'));
 cpSync(join(here, 'landing', 'landing.js'), join(out, 'landing.js'));
 console.log('web: dist ready', existsSync(join(app, 'js', 'auth.js')) ? '(auth bundled)' : '(auth missing!)');

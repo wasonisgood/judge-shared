@@ -180,3 +180,6 @@ input:focus, select:focus, textarea:focus { border-color: var(--shu); box-shadow
 
 /* 全域：hidden 屬性一律隱藏（避免 display 規則蓋過，v3.6.1） */
 [hidden] { display: none !important; }
+
+/* 品牌標誌（標題列） */
+.app-mark { width: 22px; height: 22px; vertical-align: -5px; margin-right: 8px; border-radius: 5px; }

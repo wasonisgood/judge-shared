@@ -24,4 +24,5 @@ cpSync(join(dist, 'landing.css'), join(hosting, 'landing.css'));
 cpSync(join(dist, 'landing.js'), join(hosting, 'landing.js'));
 rmSync(join(hosting, 'app'), { recursive: true, force: true });
 cpSync(join(dist, 'app'), join(hosting, 'app'), { recursive: true });
+cpSync(join(dist, 'brand'), join(hosting, 'brand'), { recursive: true });
 console.log('hosting staged at', hosting);
