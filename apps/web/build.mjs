@@ -57,6 +57,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 判決列表的智慧搜尋與 AI 篩選（core 的查詢輪次與相關性判斷），掛到 window.JRSearch。
+await build({
+  entryPoints: [join(here, 'src', 'search.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRSearch',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'search.js'),
+  logLevel: 'warning',
+});
+
 cpSync(join(here, 'app', 'index.html'), join(app, 'index.html'));
 cpSync(join(here, 'js', 'host.js'), join(app, 'js', 'host.js'));
 cpSync(join(here, 'js', 'mcpClient.js'), join(app, 'js', 'mcpClient.js'));

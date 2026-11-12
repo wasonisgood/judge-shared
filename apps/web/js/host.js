@@ -501,6 +501,61 @@
     'nl.criteria': function (args) {
       return window.JRNl.interpretCriteria(getAi, String(args && args.text || ''));
     },
+    // 智慧搜尋（網頁版）：與桌面版相同的查詢輪次（核心 runQueryRounds，最多 3 輪），關鍵字由 AI 提議；判決搜尋用 quick_search。
+    'search.smart': function (args) {
+      var request = String((args && args.request) || '').trim();
+      var statute = String((args && args.statute) || '').trim();
+      var maxItems = Math.min(20, Number(args && args.maxItems) || 20);
+      var runId = args && args.runId;
+      var S = window.JRSearch;
+      if (!request) return Promise.resolve({ status: 'done', items: [], details: null, notes: [], cancelled: false, saveError: null, explanation: S.explainTrace(S.newTrace('判決列表')) });
+      var trace = S.newTrace('判決列表');
+      var notes = [];
+      var ctrl = new AbortController();
+      if (runId) designAborts[runId] = ctrl;
+      if (statute) notes.push('網頁版目前不讀入法規條文，關鍵字只依需求與法規名稱提議。');
+      var first = statute ? request + '（相關法規：' + statute + '）' : request;
+      return S.runQueryRounds({
+        feature: '判決搜尋',
+        trace: trace,
+        module: 'ai',
+        initialQueries: [first],
+        maxRounds: 3,
+        signal: ctrl.signal,
+        search: function (q) {
+          return client.call('quick_search', { keyword: q, max_items: maxItems }).then(function (d) {
+            return (d.items || []).map(toItem);
+          });
+        },
+        keyOf: function (it) { return it.id; },
+        sufficient: function (kept) { return kept.length >= maxItems; },
+        propose: function (st) {
+          return S.proposeQueries(aiComplete, { request: request, tried: st.tried, keptCount: st.kept.length, round: st.round, lawContext: statute ? '法規名稱：' + statute : undefined });
+        },
+        onError: function (q) { notes.push('查詢「' + q + '」失敗，已略過。'); },
+        onProposeError: function () { notes.push('AI 無法提議新的關鍵字，已用目前的結果。'); },
+      }).then(function (r) {
+        if (runId) delete designAborts[runId];
+        if (r.status === 'ask') notes.push(r.question + '（網頁版請改用更具體的需求再搜尋。）');
+        if (r.status === 'capped' && r.advice) notes.push(r.advice);
+        var items = (r.items || []).slice(0, maxItems);
+        var cancelled = r.status === 'cancelled';
+        return saveLibrary('list', '智慧搜尋：' + request, { items: items, details: {}, keyword: request, tried: r.tried || [] }).then(function (saveError) {
+          return { status: 'done', items: items, details: null, tried: r.tried || [], notes: notes, cancelled: cancelled, saveError: saveError, explanation: S.explainTrace(trace) };
+        });
+      }, function (err) {
+        if (runId) delete designAborts[runId];
+        throw err;
+      });
+    },
+    // AI 篩選：判斷每一筆判決是否與研究主題相關（核心 screenRelevance；AI 漏掉的一律視為不相關）。
+    'search.screen': function (args) {
+      var items = (args && args.items) || [];
+      if (!items.length) return Promise.resolve({});
+      return window.JRSearch.screenRelevance(aiComplete, String((args && args.topic) || ''), items.map(function (it) {
+        return { id: it.id, title: it.title, cause: it.cause || '', dateIso: it.dateIso || null };
+      }));
+    },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {
