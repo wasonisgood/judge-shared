@@ -72,7 +72,7 @@
           <p class="status" id="briefStatus" role="status"></p>
         </form>
         <article class="reader" id="briefView" hidden></article>
-        <section class="annotate" id="annSection" hidden>
+        <section class="annotate" id="annSection" data-desktop-only hidden>
           <h2>判決全文標注與註解</h2>
           <p class="hint">在全文上拖曳選取文字，即出現顏色工具列。標注只存在本機；全文變動時會標示為「需重新對位」，不會錯位。</p>
           <div class="annotate-bar">

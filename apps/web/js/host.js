@@ -276,6 +276,11 @@
         return chain.then(function () {
           return client.call('get_judgment_detail', { judgment_id: id }).then(function (d) {
             var m = d.meta || {};
+            // 查不到判決（沒有標題與內文）時不列入，避免把無效的 ID 當成成功結果。
+            if (!m.title && !(d.fullText || '').trim()) {
+              notes.push('「' + id + '」查無此判決，請確認網址或 ID 是否正確。');
+              return;
+            }
             details[id] = d;
             items.push({
               id: id,
