@@ -781,6 +781,42 @@
       if (typeof fn === 'function') criteriaListeners.push(fn);
       return function () { criteriaListeners = criteriaListeners.filter(function (x) { return x !== fn; }); };
     },
+    // 匯入判決清單（網頁版）：支援 txt、csv、md；從每一格找出判決網址或判決 ID，再沿用手動輸入的流程取得判決。
+    // Excel、Word、PDF 的解析尚未在網頁版提供。
+    'importFile': function () {
+      return new Promise(function (resolve, reject) {
+        var input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.txt,.csv,.md,text/plain,text/csv,text/markdown';
+        input.addEventListener('cancel', function () { resolve({ canceled: true }); });
+        input.addEventListener('change', function () {
+          var f = input.files && input.files[0];
+          if (!f) { resolve({ canceled: true }); return; }
+          if (f.size > 2 * 1024 * 1024) { reject(new Error('檔案超過 2 MB，請分成較小的檔案。')); return; }
+          if (!/\.(txt|csv|md)$/i.test(f.name)) { reject(new Error('網頁版目前只支援 txt、csv、md；Excel、Word、PDF 請在桌面版匯入。')); return; }
+          var reader = new FileReader();
+          reader.onload = function () {
+            // 每行一則：判決網址（抓出 URL）或以判決 ID 開頭的行（ID 含逗號，取到第一個空白或引號為止）。
+            var ids = [];
+            String(reader.result || '').split(/\r?\n/).forEach(function (line) {
+              var urls = line.match(/https?:\/\/[^\s",]+/g) || [];
+              urls.forEach(function (u) { ids.push(manualIdOf(u)); });
+              var t = line.replace(/^[\s"']+/, '');
+              var m = /^([A-Z]{2,5}[,_]\d[^\s"]*)/.exec(t);
+              if (m && !urls.length) ids.push(m[1]);
+            });
+            ids = ids.filter(function (x, i, all) { return x && all.indexOf(x) === i; });
+            if (!ids.length) { resolve({ canceled: false, count: 0, fileName: f.name, saveError: null, notes: ['檔案中沒有找到判決網址或判決 ID。'] }); return; }
+            handlers['search.manual']({ text: ids.join('\n') }).then(function (m) {
+              resolve({ canceled: false, count: (m.items || []).length, fileName: f.name, saveError: m.saveError || null, notes: m.notes || [] });
+            }, reject);
+          };
+          reader.onerror = function () { reject(new Error('無法讀取檔案。')); };
+          reader.readAsText(f, 'utf-8');
+        });
+        input.click();
+      });
+    },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
       return client.call('quick_search', { keyword: String(args && args.keyword || ''), max_items: max }).then(function (d) {

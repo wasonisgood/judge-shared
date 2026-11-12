@@ -30,7 +30,7 @@
               <span class="entry-desc">在「檔案」頁匯入任何常見格式的判決清單（Excel、CSV、Word、PDF、TXT），AI 自動判斷欄位。</span>
             </button>
           </li>
-          <li>
+          <li data-desktop-only>
             <button class="entry" data-go="crawl">
               <span class="entry-title">文本擷取</span>
               <span class="entry-desc">依序執行五步：取得清單、取得文本、歷審、歷審文本、確定判決。輸出檔案放在輸入檔所在的資料夾。</span>
