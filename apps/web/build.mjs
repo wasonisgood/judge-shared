@@ -66,6 +66,8 @@ await build({
   platform: 'browser',
   target: ['es2020'],
   minify: true,
+  // 核心的標注模組用 node:crypto 計算全文雜湊；瀏覽器改用同結果的純 JavaScript SHA-256（已與 Node 比對）。
+  alias: { 'node:crypto': join(here, 'src', 'cryptoShim.js') },
   outfile: join(app, 'js', 'annotation.js'),
   logLevel: 'warning',
 });
