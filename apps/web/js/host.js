@@ -55,6 +55,20 @@
 
   // 研究設計（雲端）：需要登入。runId 用來取消進行中的對話（AbortController）。
   var semanticListeners = [];
+  // 納入排除：目前讀取的一組候選判決（只在這個頁面的工作階段）；核查紀錄保存在這個瀏覽器。
+  var criteriaPrep = null;
+  var criteriaListeners = [];
+  var CRITERIA_RUNS_KEY = 'jrWebCriteriaRuns';
+  function requireCriteriaPrep(prepId) {
+    if (!criteriaPrep || criteriaPrep.prepId !== prepId) throw new Error('候選判決已更新或已清除，請重新讀取候選判決。');
+    return criteriaPrep;
+  }
+  function readCriteriaRuns() {
+    try { return JSON.parse(localStorage.getItem(CRITERIA_RUNS_KEY) || '[]') || []; } catch (e) { return []; }
+  }
+  function writeCriteriaRuns(runs) {
+    localStorage.setItem(CRITERIA_RUNS_KEY, JSON.stringify(runs));
+  }
   var DESIGN_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/design';
   var designAborts = {};
   var DESIGN_ERRORS = {
@@ -609,6 +623,163 @@
     'semantic.onProgress': function (fn) {
       if (typeof fn === 'function') semanticListeners.push(fn);
       return function () { semanticListeners = semanticListeners.filter(function (x) { return x !== fn; }); };
+    },
+    // 納入／排除核查（網頁版）：候選判決來自檔案或重新檢索；核查與檢閱用核心邏輯，AI 經雲端；結果保存在這個瀏覽器（localStorage）。
+    'criteria.fetch': function (args) {
+      var C = window.JRCriteria;
+      var runId = args && args.runId;
+      var src = (args && args.source) || {};
+      var ctrl = new AbortController();
+      if (runId) designAborts[runId] = ctrl;
+      var done = function () { if (runId) delete designAborts[runId]; };
+      var summaries = {};
+      var details = {};
+      var ids = [];
+      var query = '';
+      var label = '';
+      var prep = null;
+      var source;
+      if (src.kind === 'library') {
+        source = libraryFetch('GET', '/' + encodeURIComponent(src.id)).then(function (item) {
+          if (item.kind !== 'list' && item.kind !== 'scope') throw new Error('只能以判決列表或範圍整理的結果作為候選判決。');
+          var p = item.payload || {};
+          ids = C.candidateIdsOf(item.kind, p);
+          details = p.details || {};
+          (Array.isArray(p.items) ? p.items : []).forEach(function (it) { summaries[it.id] = { title: it.title, dateIso: it.dateIso }; });
+          (Array.isArray(p.sheets) ? p.sheets : []).forEach(function (s) {
+            (Array.isArray(s && s.rows) ? s.rows : []).forEach(function (r) { summaries[r.id] = { title: r.title, dateIso: r.dateIso }; });
+          });
+          query = String(p.keyword || item.title);
+          label = item.title;
+        });
+      } else {
+        var q = String(src.query || '').trim();
+        if (!q) return Promise.reject(new Error('請輸入重新檢索的關鍵字。'));
+        source = client.call('quick_search', { keyword: q, max_items: Math.min(20, Math.max(1, Number(src.maxItems) || 20)) }).then(function (d) {
+          var items = (d.items || []).map(toItem);
+          ids = items.map(function (it) { return it.id; });
+          items.forEach(function (it) { summaries[it.id] = { title: it.title, dateIso: it.dateIso }; });
+          query = q;
+          label = '重新檢索：' + q;
+        });
+      }
+      return source.then(function () {
+        var cases = [];
+        var notes = [];
+        var cancelled = false;
+        var chain = Promise.resolve();
+        ids.forEach(function (id, i) {
+          chain = chain.then(function () {
+            if (cancelled || ctrl.signal.aborted) { cancelled = true; return; }
+            criteriaListeners.forEach(function (fn) { fn({ phase: 'fetch', done: i + 1, total: ids.length }); });
+            if (!C.needsFetch(id, details)) { cases.push(C.toCaseInput(id, details[id], summaries[id])); return; }
+            return client.call('get_judgment_detail', { judgment_id: id }).then(function (d) {
+              cases.push(C.toCaseInput(id, { meta: d.meta, fullText: d.fullText }, summaries[id]));
+            }, function (err) {
+              notes.push(id + '：' + ((err && err.message) || '取得失敗'));
+              cases.push(C.toCaseInput(id, undefined, summaries[id]));
+            });
+          });
+        });
+        return chain.then(function () {
+          done();
+          if (cancelled) return { cancelled: true, prepId: null, label: label, query: query, total: 0, withoutText: 0, notes: notes };
+          prep = { prepId: 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), query: query, label: label, cases: cases, notes: notes };
+          criteriaPrep = prep;
+          return {
+            cancelled: false,
+            prepId: prep.prepId,
+            label: label,
+            query: query,
+            total: cases.length,
+            withoutText: cases.filter(function (c) { return !String(c.fullText || '').trim(); }).length,
+            notes: notes,
+          };
+        });
+      }).catch(function (err) { done(); throw err; });
+    },
+    'criteria.suggest': function (args) {
+      var p = requireCriteriaPrep(args && args.prepId);
+      return window.JRCriteria.suggestCriteria(aiComplete, p.query, p.cases.map(function (c) {
+        return { caseNo: c.caseNo, head: String(c.fullText || '').slice(0, 300) };
+      })).then(function (criteria) { return { criteria: criteria }; });
+    },
+    'criteria.plan': function (args) {
+      var C = window.JRCriteria;
+      var p = requireCriteriaPrep(args && args.prepId);
+      var criteria = C.parseCriteriaInput(args.criteria);
+      return Promise.resolve({ plan: C.planRun(criteria, p.cases), hasAi: criteria.some(function (c) { return c.method === 'ai'; }), total: p.cases.length });
+    },
+    'criteria.run': function (args) {
+      var C = window.JRCriteria;
+      var runId = args && args.runId;
+      var p = requireCriteriaPrep(args && args.prepId);
+      var criteria = C.parseCriteriaInput(args.criteria);
+      var ctrl = new AbortController();
+      if (runId) designAborts[runId] = ctrl;
+      var done = function () { if (runId) delete designAborts[runId]; };
+      var useAi = criteria.some(function (c) { return c.method === 'ai'; });
+      return Promise.resolve().then(function () {
+        return C.runCriteria({ query: p.query, criteria: criteria, cases: p.cases }, {
+          ai: useAi ? aiComplete : undefined,
+          signal: ctrl.signal,
+          onProgress: function (d, t) { criteriaListeners.forEach(function (fn) { fn({ phase: 'run', done: d, total: t }); }); },
+        });
+      }).then(function (result) {
+        done();
+        var runNo = result.runNo; // eslint-disable-line no-unused-vars
+        var unsaved = Object.assign({}, result);
+        delete unsaved.runNo;
+        var runs = readCriteriaRuns();
+        var next = C.appendRun(runs, unsaved);
+        var saved = next[next.length - 1];
+        var saveError = null;
+        try { writeCriteriaRuns(next); } catch (e) { saveError = '未能保存這次核查（' + ((e && e.message) || '瀏覽器儲存空間不足') + '），結果仍顯示於畫面，請及時匯出。'; }
+        return { cancelled: false, run: saved, saveError: saveError };
+      }, function (err) {
+        done();
+        if (ctrl.signal.aborted) return { cancelled: true, run: null, saveError: null };
+        throw err;
+      });
+    },
+    'criteria.review': function (args) {
+      var runNo = Number(args && args.runNo);
+      var runs = readCriteriaRuns();
+      var idx = runs.findIndex(function (r) { return r.runNo === runNo; });
+      if (idx < 0) return Promise.reject(new Error('找不到這次核查的紀錄。'));
+      return window.JRCriteria.reviewRerun(aiComplete, runs[idx]).then(function (review) {
+        runs[idx] = Object.assign({}, runs[idx], { review: review });
+        writeCriteriaRuns(runs);
+        return { review: review, runNo: runNo };
+      });
+    },
+    'criteria.runs': function () { return Promise.resolve(readCriteriaRuns()); },
+    'criteria.compare': function (args) {
+      var runs = readCriteriaRuns();
+      var a = runs.find(function (r) { return r.runNo === args.aNo; });
+      var b = runs.find(function (r) { return r.runNo === args.bNo; });
+      if (!a || !b) return Promise.reject(new Error('找不到要比較的核查紀錄。'));
+      return Promise.resolve(window.JRCriteria.compareRuns(a, b));
+    },
+    'criteria.export': function (args) {
+      var runs = readCriteriaRuns();
+      var run = runs.find(function (r) { return r.runNo === (args && args.runNo); });
+      if (!run) return Promise.reject(new Error('找不到這次核查的紀錄。'));
+      var name = '納入排除核查_第' + run.runNo + '次.csv';
+      var blob = new Blob([window.JRCriteria.runToCsv(run)], { type: 'text/csv;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+      return Promise.resolve({ canceled: false, filePath: name });
+    },
+    'criteria.onProgress': function (fn) {
+      if (typeof fn === 'function') criteriaListeners.push(fn);
+      return function () { criteriaListeners = criteriaListeners.filter(function (x) { return x !== fn; }); };
     },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);

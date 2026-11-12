@@ -57,6 +57,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 納入／排除核查（規劃、核查、檢閱、比較，核心邏輯），掛到 window.JRCriteria。
+await build({
+  entryPoints: [join(here, 'src', 'criteria.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRCriteria',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'criteria.js'),
+  logLevel: 'warning',
+});
+
 // 段落檢索（關鍵字取候選 → 篩選 → 取內文切段 → AI 段落重排），掛到 window.JRSemantic。
 await build({
   entryPoints: [join(here, 'src', 'semantic.js')],
