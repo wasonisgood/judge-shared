@@ -137,7 +137,7 @@
           var an = r.annotated || {};
           var parts = ['已完成 AI 整理' + (r.saveError ? '。' : '，已存入「檔案」。')];
           if (r.saveError) parts.push(r.saveError);
-          parts.push(annotationText(an));
+          if (r.annotated) parts.push(annotationText(an));
           if (r.doc.droppedQuotes) parts.push('已移除 ' + r.doc.droppedQuotes + ' 則無法在判決原文中找到的引文。');
           if ((r.lawNotes || []).length) parts.push('法規內容未完整取得：' + r.lawNotes.join('；'));
           if (r.caseTypeNote) parts.push(r.caseTypeNote);

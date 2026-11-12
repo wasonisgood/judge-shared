@@ -287,7 +287,11 @@
     return { ok: true };
   }
 
-  JR.controllers.annotation = {
+  // 網頁版尚未提供全文標注（待實作），所有入口都是空操作，不發出任何請求。
+  var NOOP = function () {};
+  var WEB_NOOP = { annotateQuote: NOOP, open: NOOP, prepare: NOOP, setQueue: NOOP, bind: NOOP };
+
+  JR.controllers.annotation = JR.platform !== 'desktop' ? WEB_NOOP : {
     annotateQuote: annotateQuote,
     /** 精讀完成或開啟已存的精讀結果時，直接載入全文與標注。 */
     open: function (judgmentId, jurisdiction, title) {
