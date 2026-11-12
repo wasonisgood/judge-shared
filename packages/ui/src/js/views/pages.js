@@ -12,5 +12,9 @@
     // 設定頁的工作負載身分聯盟引導面板（v3.7.0），以佔位符標示插入位置。
     html = html.replace('@@FED_PANEL@@', function () { return JR.templates.fedPanel; });
     JR.$('pages').innerHTML = html;
+    // 頁面模板是在外殼之後才插入的，所以桌面專用的區塊要在這裡隱藏（網頁版）。
+    if (JR.platform !== 'desktop') {
+      JR.$('pages').querySelectorAll('[data-desktop-only]').forEach(function (el) { el.hidden = true; el.style.display = 'none'; });
+    }
   };
 })(window.JR);

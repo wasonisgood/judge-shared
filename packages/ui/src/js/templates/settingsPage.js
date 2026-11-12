@@ -18,7 +18,7 @@
         <section class="set-sec" aria-labelledby="secAi">
           <h2 id="secAi"><span class="set-no">貳</span>AI 服務</h2>
           <form class="set-form" id="settingsForm">
-            <div class="set-row">
+            <div class="set-row" data-desktop-only>
               <div class="set-label"><strong>服務</strong><span class="set-desc">Anthropic 或 OpenAI 相容的服務</span></div>
               <div class="set-ctl">
                 <select id="setProvider">
@@ -27,7 +27,7 @@
                 </select>
               </div>
             </div>
-            <div class="set-row">
+            <div class="set-row" data-desktop-only>
               <div class="set-label"><strong>驗證方式</strong><span class="set-desc">使用自己的金鑰，或由提供者代為連線</span></div>
               <div class="set-ctl">
                 <select id="setAuthMode">
@@ -36,7 +36,7 @@
                 </select>
               </div>
             </div>
-            <div class="set-row" id="keyField">
+            <div class="set-row" id="keyField" data-desktop-only>
               <div class="set-label"><strong>API 金鑰</strong><span class="set-desc">要更換時再輸入；不輸入則保留原金鑰 <small id="keyState"></small></span></div>
               <div class="set-ctl set-ctl-wide">
                 <input id="setKey" type="password" autocomplete="new-password" placeholder="輸入新的金鑰">
@@ -44,7 +44,7 @@
               </div>
             </div>
             @@FED_PANEL@@
-            <details class="set-adv">
+            <details class="set-adv" data-desktop-only>
               <summary>進階設定</summary>
               <div class="set-row">
                 <div class="set-label"><strong>服務網址</strong></div>
@@ -135,7 +135,7 @@
               <button class="btn small" type="button" id="workerTest">發送測試通知</button>
             </div>
           </div>
-          <div class="set-row">
+          <div class="set-row" data-desktop-only>
             <div class="set-label"><strong>搜尋結果快取天數</strong><span class="set-desc">法條沿革與法名確認永久保存；判決內頁永久保存</span></div>
             <div class="set-ctl">
               <input id="setCacheDays" type="number" min="1" max="90" value="7">

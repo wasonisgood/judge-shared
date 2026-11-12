@@ -343,6 +343,42 @@
     },
     'jobs.list': function () { return Promise.resolve([]); },
     'jobs.onChanged': function () { /* 網頁版沒有背景工作橫幅 */ },
+    // 設定頁「測試連線」：送一次極小的請求經雲端 AI，確認訂閱與上游可用。
+    'settings.test': function () {
+      return aiComplete('你是連線測試。只回覆「OK」兩個字。', '測試', 10).then(function (reply) {
+        return { reply: String(reply || '').slice(0, 40) || '（空白回覆）' };
+      });
+    },
+    // 背景工作通知（網頁版）：偏好保存在這個瀏覽器；測試通知使用瀏覽器的通知功能。
+    'worker.settingsGet': function () {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jrWebWorker') || '{}') || {}; } catch (e) { s = {}; }
+      return Promise.resolve({ enabled: !!s.enabled, style: s.style === 'system' ? 'system' : 'custom' });
+    },
+    'worker.settingsSet': function (patch) {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jrWebWorker') || '{}') || {}; } catch (e) { s = {}; }
+      if (patch && typeof patch.enabled === 'boolean') s.enabled = patch.enabled;
+      if (patch && (patch.style === 'system' || patch.style === 'custom')) s.style = patch.style;
+      try { localStorage.setItem('jrWebWorker', JSON.stringify(s)); } catch (e) { /* 無法保存時只影響這次工作階段 */ }
+      return Promise.resolve({ enabled: !!s.enabled, style: s.style === 'system' ? 'system' : 'custom' });
+    },
+    'worker.test': function () {
+      var s = {};
+      try { s = JSON.parse(localStorage.getItem('jrWebWorker') || '{}') || {}; } catch (e) { s = {}; }
+      if (!s.enabled) return Promise.resolve({ channel: 'none' });
+      if (!('Notification' in window)) return Promise.reject(new Error('這個瀏覽器不支援通知。'));
+      var show = function () { new Notification('司法院裁判研究', { body: '這是測試通知。' }); return { channel: 'custom' }; };
+      if (Notification.permission === 'granted') return Promise.resolve(show());
+      if (Notification.permission === 'denied') return Promise.reject(new Error('瀏覽器已封鎖通知，請到網站設定中允許。'));
+      return Notification.requestPermission().then(function (p) {
+        if (p !== 'granted') throw new Error('未允許通知。');
+        return show();
+      });
+    },
+    'worker.list': function () { return Promise.resolve([]); },
+    'worker.onChanged': function () { /* 網頁版沒有背景工作 */ },
+    'worker.onOpen': function () { /* 網頁版沒有背景工作 */ },
     // 範圍整理：按鈕可用狀態（核心 scopeUiState，與桌面端相同的規則）。
     'scope.controls': function (args) {
       return Promise.resolve(window.JRScope.scopeUiState(args || {}));
