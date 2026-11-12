@@ -74,7 +74,7 @@
         <article class="reader" id="briefView" hidden></article>
         <section class="annotate" id="annSection" hidden>
           <h2>判決全文標注與註解</h2>
-          <p class="hint">在全文上拖曳選取文字，即出現顏色工具列。標注只存在本機；全文變動時會標示為「需重新對位」，不會錯位。</p>
+          <p class="hint">在全文上拖曳選取文字，即出現顏色工具列。標注保存在你的帳號中，桌面版可與之同步；全文變動時會標示為「需重新對位」，不會錯位。</p>
           <div class="annotate-bar">
             <button class="btn small" type="button" id="annLoad" disabled>載入全文</button>
             <label class="check"><input type="checkbox" id="annShowAi" checked> 顯示 AI 引文標注</label>
