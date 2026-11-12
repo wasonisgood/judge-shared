@@ -57,6 +57,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 個案研究筆記（標注的資料模型與對位，核心邏輯），掛到 window.JRAnnotation。
+await build({
+  entryPoints: [join(here, 'src', 'annotation.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRAnnotation',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'annotation.js'),
+  logLevel: 'warning',
+});
+
 // 納入／排除核查（規劃、核查、檢閱、比較，核心邏輯），掛到 window.JRCriteria。
 await build({
   entryPoints: [join(here, 'src', 'criteria.js')],

@@ -105,6 +105,95 @@
     });
   }
 
+  // 個案研究筆記的共用函式（網頁版）。
+  var ANN_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/annotations';
+  function annCheckChoice(color, mode) {
+    if (window.JRAnnotation.HIGHLIGHT_COLORS.indexOf(color) < 0) throw new Error('不支援的螢光顏色');
+    if (['highlight', 'highlight_note'].indexOf(mode) < 0) throw new Error('不支援的標注模式');
+  }
+  // 判決的資料（全文、主文、顯示資訊）：經 MCP 取得。
+  function annDetail(judgmentId) {
+    return client.call('get_judgment_detail', { judgment_id: String(judgmentId || '') }).then(function (d) {
+      var m = d.meta || {};
+      if (!String(d.fullText || '').trim()) throw new Error('這則判決沒有可用的原文，無法標注。');
+      return {
+        fullText: d.fullText,
+        mainText: (d.sections || {})['主文'] || '',
+        meta: {
+          title: m.title || m.id || judgmentId, caseNo: m.caseNo || '', court: m.court || '',
+          dateIso: m.dateIso || m.dateMinguo || '', cause: m.cause || '', sourceUrl: m.sourceUrl || '', jurisdiction: '',
+        },
+      };
+    });
+  }
+  function annFetch(method, body) {
+    return window.JRAuth.getIdToken().then(function (token) {
+      if (!token) throw new Error('請先登入。');
+      var init = { method: method, headers: { authorization: 'Bearer ' + token } };
+      if (body !== undefined) {
+        init.headers['content-type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      return fetch(ANN_ENDPOINT, init);
+    }).then(function (res) {
+      return res.json().catch(function () { return {}; }).then(function (j) { return { status: res.status, body: j }; });
+    });
+  }
+  /** 讀取目前的標注文件：檔案形狀與版本號。 */
+  function annRead() {
+    return annFetch('GET').then(function (r) {
+      if (r.status !== 200) throw new Error(r.body.message || ('無法讀取標注（HTTP ' + r.status + '）。'));
+      return { file: window.JRAnnotation.fileFromPayload(r.body.payload), revision: r.body.revision || 0 };
+    });
+  }
+  /** 讀取 → 套用修改 → 以版本號寫回；版本衝突（409）時重讀後重新套用。mutator 回傳 { file, result } 或 { skip, result }。 */
+  function annMutate(mutator, attempt) {
+    attempt = attempt || 0;
+    return annRead().then(function (cur) {
+      var out = mutator(cur.file);
+      if (out.skip) return out.result;
+      return annFetch('PUT', { baseRevision: cur.revision, payload: window.JRAnnotation.payloadFromFile(out.file) }).then(function (r) {
+        if (r.status === 200) return out.result;
+        if (r.status === 409 && attempt < 2) return annMutate(mutator, attempt + 1);
+        throw new Error(r.body.message || ('標注保存失敗（HTTP ' + r.status + '）。'));
+      });
+    });
+  }
+  /** 匯出 Word：由雲端依版面產生（與桌面版相同），完成後下載。 */
+  function annExport(judgmentIds) {
+    return Promise.all(judgmentIds.map(function (id) {
+      return annDetail(id).then(function (det) {
+        return annRead().then(function (cur) {
+          var entry = cur.file.judgments[id];
+          var all = window.JRAnnotation.withStatus(entry ? entry.annotations : [], det.fullText);
+          return {
+            meta: det.meta,
+            fullText: det.fullText,
+            annotations: all.filter(function (a) { return a.status === 'ok'; }),
+            stale: all.filter(function (a) { return a.status !== 'ok'; }),
+          };
+        });
+      });
+    })).then(function (cases) {
+      return annRead().then(function (cur) {
+        return window.JRAuth.getIdToken().then(function (token) {
+          if (!token) throw new Error('請先登入。');
+          return fetch('https://judge-remote-mcp-2026.web.app/api/export/annotated', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', authorization: 'Bearer ' + token },
+            body: JSON.stringify({ cases: cases, colorLabels: window.JRAnnotation.resolveColorLabels(cur.file.colorLabels) }),
+          });
+        }).then(function (res) {
+          return res.json().catch(function () { return {}; }).then(function (j) {
+            if (!res.ok) throw new Error(j.message || ('匯出失敗：HTTP ' + res.status));
+            window.location.href = j.url;
+            return { canceled: false, filePath: j.name };
+          });
+        });
+      });
+    });
+  }
+
   // base64 轉 UTF-8 文字（純文字檔的匯入用）。
   function decodeBase64Text(b64) {
     var bin = atob(b64);
@@ -850,6 +939,127 @@
         });
         input.click();
       });
+    },
+    // 個案研究筆記（網頁版）：標注保存在雲端同步文件（/api/annotations，與桌面版同一份，帶版本號；不含全文）。
+    // 每次修改都先讀取、套用、再以 baseRevision 寫回；版本衝突時重讀後重新套用。
+    'annotation.load': function (args) {
+      var A = window.JRAnnotation;
+      var includeAi = !(args && args.includeAi === false);
+      return annDetail(args.judgmentId).then(function (det) {
+        return annRead().then(function (cur) {
+          var entry = cur.file.judgments[args.judgmentId];
+          var list = A.withStatus(entry ? entry.annotations : [], det.fullText);
+          var shown = list.filter(function (a) { return a.status === 'ok' && (includeAi || a.origin !== 'ai'); });
+          return {
+            meta: det.meta,
+            fullText: det.fullText,
+            mainText: det.mainText,
+            annotations: list,
+            segments: A.segmentText(det.fullText, shown).map(function (s) { return { start: s.start, end: s.end, color: s.color, annotationIds: s.annotationIds }; }),
+            colorLabels: A.resolveColorLabels(cur.file.colorLabels),
+          };
+        });
+      });
+    },
+    'annotation.add': function (args) {
+      var A = window.JRAnnotation;
+      annCheckChoice(args.color, args.mode);
+      return annDetail(args.judgmentId).then(function (det) {
+        return annMutate(function (file) {
+          var r = A.addToFile(file, args.judgmentId, det.meta, {
+            judgmentId: args.judgmentId, start: args.start, end: args.end, color: args.color, mode: args.mode, note: args.note || '', origin: 'manual',
+          }, det.fullText);
+          return { file: r.file, result: Object.assign({}, r.annotation, { status: 'ok' }) };
+        });
+      });
+    },
+    'annotation.update': function (args) {
+      var A = window.JRAnnotation;
+      var patch = args.patch || {};
+      if (patch.color !== undefined && window.JRAnnotation.HIGHLIGHT_COLORS.indexOf(patch.color) < 0) return Promise.reject(new Error('不支援的螢光顏色'));
+      if (patch.mode !== undefined && ['highlight', 'highlight_note'].indexOf(patch.mode) < 0) return Promise.reject(new Error('不支援的標注模式'));
+      return annMutate(function (file) {
+        return { file: A.patchInFile(file, args.judgmentId, args.id, patch), result: { ok: true } };
+      });
+    },
+    'annotation.remove': function (args) {
+      var A = window.JRAnnotation;
+      return annMutate(function (file) {
+        var r = A.removeFromFile(file, args.judgmentId, args.id);
+        return { file: r.file, result: { removed: r.removed } };
+      });
+    },
+    'annotation.reanchor': function (args) {
+      var A = window.JRAnnotation;
+      return annDetail(args.judgmentId).then(function (det) {
+        return annMutate(function (file) {
+          var entry = file.judgments[args.judgmentId];
+          var target = entry && entry.annotations.filter(function (a) { return a.id === args.id; })[0];
+          if (!entry || !target) throw new Error('找不到這筆標注');
+          var moved = A.reanchor(target, det.fullText);
+          if (!moved) return { skip: true, result: { ok: false, annotation: null } };
+          var judgments = Object.assign({}, file.judgments);
+          judgments[args.judgmentId] = Object.assign({}, entry, {
+            annotations: entry.annotations.map(function (a) { return a.id === args.id ? moved : a; }),
+          });
+          return { file: Object.assign({}, file, { judgments: judgments }), result: { ok: true, annotation: Object.assign({}, moved, { status: 'ok' }) } };
+        });
+      });
+    },
+    // AI 引文標注：驗證過的引文（逐字存在於全文）轉為 origin 為 ai 的螢光標注，與人工標注分開。
+    'annotation.importAi': function (args) {
+      var A = window.JRAnnotation;
+      var quotes = (args && args.quotes) || [];
+      return annDetail(args.judgmentId).then(function (det) {
+        return annMutate(function (file) {
+          var added = 0, skipped = 0;
+          var cur = file;
+          quotes.filter(function (q, i, all) { return all.indexOf(q) === i; }).forEach(function (quote) {
+            var start = quote ? det.fullText.indexOf(quote) : -1;
+            if (start < 0) { skipped++; return; }
+            var end = start + quote.length;
+            var entry = cur.judgments[args.judgmentId];
+            if (entry && entry.annotations.some(function (a) { return a.origin === 'ai' && a.start === start && a.end === end; })) { skipped++; return; }
+            cur = A.addToFile(cur, args.judgmentId, det.meta, { judgmentId: args.judgmentId, start: start, end: end, color: 'yellow', mode: 'highlight', origin: 'ai' }, det.fullText).file;
+            added++;
+          });
+          return { file: cur, result: { added: added, skipped: skipped } };
+        });
+      });
+    },
+    'annotation.judgments': function () {
+      return annRead().then(function (cur) { return window.JRAnnotation.listJudgments(cur.file); });
+    },
+    'annotation.labels.get': function () {
+      return annRead().then(function (cur) { return window.JRAnnotation.resolveColorLabels(cur.file.colorLabels); });
+    },
+    'annotation.labels.set': function (args) {
+      var A = window.JRAnnotation;
+      return annMutate(function (file) {
+        var labels = A.validateColorLabels(args && args.labels, A.resolveColorLabels(file.colorLabels));
+        return { file: Object.assign({}, file, { colorLabels: labels }), result: labels };
+      });
+    },
+    'annotation.syncStatus': function () {
+      return window.JRAuth.getIdToken().then(function (t) {
+        return { available: !!t, reason: t ? '' : '請先登入。' };
+      });
+    },
+    // 網頁版的標注直接保存在雲端，「同步」即是讀取目前的版本。
+    'annotation.syncNow': function () {
+      return annRead().then(function (cur) {
+        var count = window.JRAnnotation.listJudgments(cur.file).reduce(function (n, j) { return n + j.count; }, 0);
+        return { merged: false, revision: cur.revision, annotations: count };
+      });
+    },
+    'annotation.export': function (args) {
+      return annExport([args.judgmentId]);
+    },
+    'annotation.exportMany': function (args) {
+      var ids = ((args && args.targets) || []).map(function (t) { return t.judgmentId; });
+      if (!ids.length) return Promise.reject(new Error('請先勾選要匯出的案件'));
+      if (ids.length > 50) return Promise.reject(new Error('一次最多合併 50 案'));
+      return annExport(ids);
     },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
