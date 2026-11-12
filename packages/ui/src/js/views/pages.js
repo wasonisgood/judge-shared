@@ -14,6 +14,8 @@
     // 網頁版的 AI 由雲端與訂閱提供，不需要本機金鑰；桌面版的提示保持原樣。
     if (JR.platform !== 'desktop') {
       html = html.split('請先在「設定」輸入 AI 金鑰').join('網頁版由雲端提供 AI，不需要金鑰');
+      // 網頁版的納入排除匯出是 CSV（桌面版為 Excel）。
+      html = html.split('id="critExport" disabled>匯出 Excel').join('id="critExport" disabled>匯出 CSV');
     }
     JR.$('pages').innerHTML = html;
     // 頁面模板是在外殼之後才插入的，所以桌面專用的區塊要在這裡隱藏（網頁版）。
