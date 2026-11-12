@@ -57,6 +57,19 @@ await build({
   logLevel: 'warning',
 });
 
+// 段落檢索（關鍵字取候選 → 篩選 → 取內文切段 → AI 段落重排），掛到 window.JRSemantic。
+await build({
+  entryPoints: [join(here, 'src', 'semantic.js')],
+  bundle: true,
+  format: 'iife',
+  globalName: 'JRSemantic',
+  platform: 'browser',
+  target: ['es2020'],
+  minify: true,
+  outfile: join(app, 'js', 'semantic.js'),
+  logLevel: 'warning',
+});
+
 // 判決列表的智慧搜尋與 AI 篩選（core 的查詢輪次與相關性判斷），掛到 window.JRSearch。
 await build({
   entryPoints: [join(here, 'src', 'search.js')],

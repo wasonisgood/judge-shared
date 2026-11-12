@@ -54,6 +54,7 @@
   }
 
   // 研究設計（雲端）：需要登入。runId 用來取消進行中的對話（AbortController）。
+  var semanticListeners = [];
   var DESIGN_ENDPOINT = 'https://judge-remote-mcp-2026.web.app/api/design';
   var designAborts = {};
   var DESIGN_ERRORS = {
@@ -560,6 +561,54 @@
       return window.JRSearch.screenRelevance(aiComplete, String((args && args.topic) || ''), items.map(function (it) {
         return { id: it.id, title: it.title, cause: it.cause || '', dateIso: it.dateIso || null };
       }));
+    },
+    // 段落檢索（網頁版）：與桌面版相同的流程（核心段落重排），在瀏覽器執行；AI 經雲端。
+    'semantic.run': function (args) {
+      var S = window.JRSemantic;
+      var runId = args && args.runId;
+      var keyword = String((args && args.keyword) || '').trim();
+      var query = String((args && args.query) || '').trim();
+      if (!keyword) return Promise.reject(new Error('請輸入搜尋關鍵字'));
+      if (!query) return Promise.reject(new Error('請輸入研究問題（用來排序段落）'));
+      var ctrl = new AbortController();
+      if (runId) designAborts[runId] = ctrl;
+      var done = function () { if (runId) delete designAborts[runId]; };
+      return S.runSemanticSearch({
+        keyword: keyword,
+        query: query,
+        kind: args.kind === 'opinion' ? 'opinion' : 'fact',
+        filter: S.normalizeFilter(args.filter),
+        maxCandidates: Number(args.maxCandidates) || undefined,
+      }, {
+        search: function (kw, max) {
+          return client.call('quick_search', { keyword: kw, max_items: Math.min(20, max) }).then(function (d) {
+            return (d.items || []).map(function (it) { return { id: it.id, title: it.title, dateIso: it.date_iso || null, cause: it.cause || '', href: it.href || null }; });
+          });
+        },
+        detail: function (id) { return client.call('get_judgment_detail', { judgment_id: id }); },
+        ai: aiComplete,
+        signal: ctrl.signal,
+        onProgress: function (p) { semanticListeners.forEach(function (fn) { fn(p); }); },
+      }).then(function (r) { done(); return r; }, function (err) { done(); throw err; });
+    },
+    'semantic.fullText': function (args) {
+      return client.call('get_judgment_detail', { judgment_id: String((args && args.id) || '') }).then(function (d) {
+        return { title: (d.meta || {}).title || '', sourceUrl: (d.meta || {}).sourceUrl || null, fullText: d.fullText || '' };
+      });
+    },
+    'semantic.ask': function (args) {
+      var runId = args && args.runId;
+      var ctrl = new AbortController();
+      if (runId) designAborts[runId] = ctrl;
+      var cases = (args && args.cases) || [];
+      return window.JRSemantic.askScopedQuestion(aiComplete, String((args && args.question) || ''), cases).then(function (r) {
+        if (runId) delete designAborts[runId];
+        return r;
+      }, function (err) { if (runId) delete designAborts[runId]; throw err; });
+    },
+    'semantic.onProgress': function (fn) {
+      if (typeof fn === 'function') semanticListeners.push(fn);
+      return function () { semanticListeners = semanticListeners.filter(function (x) { return x !== fn; }); };
     },
     'search.run': function (args) {
       var max = Math.min(20, Number(args && args.maxItems) || 20);
